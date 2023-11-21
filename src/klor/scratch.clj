@@ -21,9 +21,9 @@
           (select [Seller ok@Buyer]
             (comlet [address@Seller (:address order)]
               (comlet [date@Buyer (ship! address catalogue)]
-                (println "Arriving on" date))))
+                (println "I'll get the book on" date))))
           (select [Seller ok@Buyer]
-            (println "Nevermind"))))))
+            (println "Buyer changed his mind"))))))
 
   ;; Roles as communication functions (plus some role inference)
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
@@ -34,9 +34,9 @@
              Seller
              ship!
              Buyer
-             (println "Arriving on %s")))
+             (println "I'll get the book on %s")))
       (select [Seller Buyer/ko]
-        (format "Nevermind"@Seller))))
+        (println "Buyer changed his mind"@Seller))))
 
   ;; Roles as "blocks"/"local contexts" (multitier-like)
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
@@ -46,6 +46,6 @@
        (select ok
          (as-> (Buyer (:address order)) v
            (Seller (ship! v))
-           (println "Arriving on" v)))
+           (println "I'll get the book on" v)))
        (select ko
-         (Seller (println "Nevermind")))))))
+         (Seller (println "Buyer changed his mind")))))))
