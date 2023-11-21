@@ -18,36 +18,34 @@
     (comlet [title@Seller (:title order)]
       (comlet [price@Buyer (price-of title catalogue)]
         (if [Buyer (>= (:budget order) price)]
-          (select [Buyer ok@Seller]
+          (select [Seller ok@Buyer]
             (comlet [address@Seller (:address order)]
               (comlet [date@Buyer (ship! address catalogue)]
                 (format "Arriving on %s" date))))
-          (select [Buyer ok@Seller]
+          (select [Seller ok@Buyer]
             (format "Nevermind"))))))
 
   ;; Roles as communication functions (plus some role inference)
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
     (if (>= (:budget order)
             (Buyer (price-of (Seller (:title order)) catalogue)))
-      (select [Buyer Seller/ok]
+      (select [Seller Buyer/ok]
         (->> (:address order)
              Seller
              ship!
              Buyer
              (format "Arriving on %s")))
-      (select [Buyer Seller/ko]
-        (format "Nevermind"@Buyer))))
+      (select [Seller Buyer/ko]
+        (format "Nevermind"@Seller))))
 
   ;; Roles as "blocks"/"local contexts" (multitier-like)
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
     (Buyer
      (if (>= (:budget order)
              (Seller (price-of (Buyer (:title order)) catalogue)))
-       (Seller
-        (select Seller/ok
-          (as-> (Buyer (:address order)) v
-            (ship! v)
-            (Buyer (format "Arriving on %s" v))))
-        (select Seller/ko
-          (Buyer
-           (format "Nevermind"))))))))
+       (select ok
+         (as-> (:address order) v
+           (Seller (ship! v))
+           (Buyer (format "Arriving on %s" v))))
+       (select ko
+         (Seller (format "Nevermind")))))))
