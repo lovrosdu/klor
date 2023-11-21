@@ -36,4 +36,18 @@
              Buyer
              (format "Arriving on %s")))
       (select [Buyer Seller/ko]
-        (format "Nevermind"@Buyer)))))
+        (format "Nevermind"@Buyer))))
+
+  ;; Roles as "blocks"/"local contexts" (multitier-like)
+  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
+    (Buyer
+     (if (>= (:budget order)
+             (Seller (price-of (Buyer (:title order)) catalogue)))
+       (Seller
+        (select Seller/ok
+          (as-> (Buyer (:address order)) v
+            (ship! v)
+            (Buyer (format "Arriving on %s" v))))
+        (select Seller/ko
+          (Buyer
+           (format "Nevermind"))))))))
