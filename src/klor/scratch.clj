@@ -44,8 +44,8 @@
      (if (>= (:budget order)
              (Seller (price-of (Buyer (:title order)) catalogue)))
        (select ok
-         (as-> (:address order) v
+         (as-> (Buyer (:address order)) v
            (Seller (ship! v))
-           (Buyer (println "Arriving on" v))))
+           (println "Arriving on" v)))
        (select ko
          (Seller (println "Nevermind")))))))
