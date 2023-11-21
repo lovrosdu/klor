@@ -14,9 +14,15 @@
 
 (comment
   (defchor buy-book [Buyer Seller] [order@Buyer catalogue@Seller]
-    (if (>= budget (Buyer (price-of (Seller (:title order)) catalogue)))
-      ...
-      ...))
+    (comlet [title@Seller (:title order)]
+      (comlet [price@Buyer (price-of title catalogue)]
+        (if [Buyer (>= (:budget order) price)]
+          (select [Buyer ok@Seller]
+            (comlet [address@Seller (:address order)]
+              (comlet [date@Buyer (ship! address catalogue)]
+                (format "Arriving on %s" date))))
+          (select [Buyer ok@Seller]
+            (format "Nevermind"))))))
 
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
     (if (>= (:budget order) (Buyer (price-of (Seller (:title order)) catalogue)))
