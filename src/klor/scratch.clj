@@ -21,9 +21,9 @@
           (select [Seller ok@Buyer]
             (comlet [address@Seller (:address order)]
               (comlet [date@Buyer (ship! address catalogue)]
-                (format "Arriving on %s" date))))
+                (println "Arriving on" date))))
           (select [Seller ok@Buyer]
-            (format "Nevermind"))))))
+            (println "Nevermind"))))))
 
   ;; Roles as communication functions (plus some role inference)
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
@@ -34,7 +34,7 @@
              Seller
              ship!
              Buyer
-             (format "Arriving on %s")))
+             (println "Arriving on %s")))
       (select [Seller Buyer/ko]
         (format "Nevermind"@Seller))))
 
@@ -46,6 +46,6 @@
        (select ok
          (as-> (:address order) v
            (Seller (ship! v))
-           (Buyer (format "Arriving on %s" v))))
+           (Buyer (println "Arriving on" v))))
        (select ko
-         (Seller (format "Nevermind")))))))
+         (Seller (println "Nevermind")))))))
