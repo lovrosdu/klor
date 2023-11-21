@@ -13,6 +13,7 @@
   nil)
 
 (comment
+  ;; `comlet` for communication (plus some role inference)
   (defchor buy-book [Buyer Seller] [order@Buyer catalogue@Seller]
     (comlet [title@Seller (:title order)]
       (comlet [price@Buyer (price-of title catalogue)]
@@ -24,8 +25,10 @@
           (select [Buyer ok@Seller]
             (format "Nevermind"))))))
 
+  ;; Roles as communication functions (plus some role inference)
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
-    (if (>= (:budget order) (Buyer (price-of (Seller (:title order)) catalogue)))
+    (if (>= (:budget order)
+            (Buyer (price-of (Seller (:title order)) catalogue)))
       (select [Buyer Seller/ok]
         (->> (:address order)
              Seller
@@ -33,4 +36,4 @@
              Buyer
              (format "Arriving on %s")))
       (select [Buyer Seller/ko]
-        (format "Nevermind")))))
+        (format "Nevermind"@Buyer)))))
