@@ -6,10 +6,14 @@
 (defn com [& args]
   nil)
 
-(defmacro comlet [vars & body]
+(defmacro comlet
+  {:style/indent 1}
+  [vars & body]
   nil)
 
-(defmacro select [label & body]
+(defmacro select
+  {:style/indent 1}
+  [label & body]
   nil)
 
 (comment
