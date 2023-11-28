@@ -17,8 +17,9 @@
   nil)
 
 (comment
-  ;; `comlet` for communication (plus some role inference). [x@y] parsing hack
-  ;; for role suffixes (actually parsed as [x @y]).
+  ;; `comlet` for communication (plus some role inference). We abuse the parser
+  ;; and vectors for role suffixes, because [x@y] is parsed as [x @y], but x@y
+  ;; is a syntax error when outside of a vector.
   (defchor buy-book [Buyer Seller] [order@Buyer catalogue@Seller]
     (comlet [title@Seller (:title order)]
       (comlet [price@Buyer (price-of title catalogue)]
@@ -57,7 +58,9 @@
       (select [Seller Buyer/ko]
         (println "Buyer changed his mind"@Seller))))
 
-  ;; Roles as "blocks"/"local contexts" (multitier-like).
+  ;; Roles as "blocks"/"local contexts" (multitier-like, but expression- instead
+  ;; of statement-oriented). Selections are automatically sent to the union of
+  ;; the roles involved in the branches.
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
     (Buyer
      (if (>= (:budget order)
@@ -67,4 +70,63 @@
            (Seller (ship! v))
            (println "I'll get the book on" v)))
        (select ko
-         (Seller (println "Buyer changed his mind")))))))
+         (Seller (println "Buyer changed his mind"))))))
+
+  ;; Single-branch `if` and operators like `when`, etc. should automatically add
+  ;; a selection in the else branch. It should use some default label, or maybe
+  ;; even a freshly-generated one.
+  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
+    (Buyer
+     (when (>= (:budget order)
+               (Seller (price-of (Buyer (:title order)) catalogue)))
+       (select ok
+         (as-> (Buyer (:address order)) v
+           (Seller (ship! v))
+           (println "I'll get the book on" v))))))
+
+  ;; A `let`'s bindings, initialization forms and body are by default at the
+  ;; currently active context.
+  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
+    (Seller
+     (let [title (Buyer (:title order))]
+       (Buyer
+        (let [price (Seller (price-of title))]
+          (when (>= (:budget order) price)
+            (select ok
+              (Seller
+               (let [address (Buyer (:address order))]
+                 (as-> (Buyer (:address order)) v
+                   (Seller (ship! v))
+                   (println "I'll get the book on" v)))))))))))
+
+  ;; A multi-role/choreographic `let` can make use of role-prefixed variables as
+  ;; syntax sugar for the explicit context switches.
+  ;;
+  ;; If there's no active context, then (1) non-role-prefixed variables probably
+  ;; shouldn't be allowed, and (2) contexts must be opened explicitly at each of
+  ;; the 3 mentioned points.
+  ;;
+  ;; All variables are context-specific, i.e. `(Seller x)` and `(Buyer x)` are
+  ;; expressions referring to 2 different `x`s. Implicit variable capture is
+  ;; therefore not allowed and context transitions are directly visible.
+  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
+    (let [Seller/title (Buyer (:title order))
+          Buyer/price (Seller (price-of title))]
+      (Buyer
+       (when (>= (:budget order) price)
+         (select ok
+           (let [Seller/address (:address order)
+                 Seller/date (Seller (ship! address))]
+             (println "I'll get the book on" (Seller date))))))))
+
+  ;; More generally, an expression such as `r/x` could just be a syntactical
+  ;; shorthand for `(r x)`.
+  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
+    (let [Seller/title (Buyer (:title order))
+          Buyer/price (Seller (price-of title))]
+      (Buyer
+       (when (>= (:budget order) price)
+         (select ok
+           (let [Seller/address (:address order)
+                 Seller/date (Seller (ship! address))]
+             (println "I'll get the book on" Seller/date))))))))
