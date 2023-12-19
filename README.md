@@ -7,7 +7,7 @@ You should have Clojure and Leiningen installed.
 Clone the Git repository and use:
 
 - `lein test` to run the test suite,
-- `lain run` to run a small printing demo.
+- `lein run` to run a small printing demo.
 
 ## Example
 
