@@ -122,11 +122,22 @@
   ;; More generally, an expression such as `r/x` could just be a syntactical
   ;; shorthand for `(r x)`.
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
-    (let [Seller/title (Buyer (:title order))
-          Buyer/price (Seller (price-of title))]
+    (let [(Seller title) (Buyer (:title order))
+          (Buyer price) (Seller (price-of title))]
       (Buyer
        (when (>= (:budget order) price)
          (select ok
            (let [Seller/address (:address order)
+                 Seller/date (Seller (ship! address))]
+             (println "I'll get the book on" Seller/date)))))))
+
+  ;; `let` should be able to destructure its arguments as usual.
+  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
+    (let [(Buyer {:keys [title budget address]}) Buyer/order
+          Buyer/price (Seller (price-of Buyer/title))]
+      (Buyer
+       (when (>= budget price)
+         (select ok
+           (let [Seller/address address
                  Seller/date (Seller (ship! address))]
              (println "I'll get the book on" Seller/date))))))))
