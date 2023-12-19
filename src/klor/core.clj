@@ -213,34 +213,43 @@
    (:value colored)
    (merge opts {:color-scheme (make-color-scheme (:color colored))})))
 
-(defn to-colored [roles form]
+(defn color-chor-form [roles form]
   (let [{:keys [role]} (meta form)]
     (->Colored (or (roles role) :white)
                (cond
-                 (vector? form) (mapv (partial to-colored roles) form)
-                 (seq? form) (map (partial to-colored roles) form)
+                 (vector? form) (mapv (partial color-chor-form roles) form)
+                 (seq? form) (map (partial color-chor-form roles) form)
                  :else (unmetaify form)))))
 
-(defn print-colored
+(defn print-chor-form
   "Print a role-analyzed FORM with syntax coloring, using one color for per role.
 
   COLORS maps each role to a color. By default, colors are taken from
   `fg-colors`."
   ([form]
-   (print-colored form (zipmap (:roles (meta form)) fg-colors)))
+   (print-chor-form form (zipmap (:roles (meta form)) fg-colors)))
   ([form colors]
-   (-> (to-colored colors form)
-       (puget/cprint {:print-handlers {klor.core.Colored colored-handler}}))))
+   (-> (color-chor-form colors form)
+       (puget/cprint {:print-handlers {klor.core.Colored colored-handler}
+                      :width 500}))))
+
+(defn role-visualize [roles form & colors]
+  (let [analyzed (role-analyze roles (role-expand roles form))]
+    (puget/pprint form {:width 500})
+    (print "  => ")
+    (apply print-chor-form analyzed colors)))
 
 (defn -main []
-  (print-colored (role-analyze '#{Ana Bob Cal Dan}
-                               '(let [(Ana x) (Ana y)]
-                                  (let [(Bob y) (Cal b)]
-                                    (let [(Cal z) (Dan c)]
-                                      (Dan w))))))
-  (print-colored (role-analyze '#{Ana Bob Cal Dan}
-                               '(let [(Ana x) (Ana 123)]
-                                  (let [(Bob y) (Cal false)]
-                                    (let [(Cal z) (Dan c)]
-                                      (Dan a b (Ana w))))))
-                 {'Ana :yellow 'Bob :magenta 'Cal :red 'Dan :cyan}))
+  (role-visualize '#{Ana Bob} '(let [Ana/x Bob/x] (if Ana/x Bob/x Bob/x))
+                  {'Ana :yellow 'Bob :cyan})
+  (role-visualize '#{Ana Bob Cal Dan}
+                  '(let [(Bob x) (Ana x)]
+                     (let [(Cal x) (Bob x)]
+                       (let [(Dan x) (Cal x)]
+                         (Dan x)))))
+  (role-visualize '#{Ana Bob Cal Dan}
+                  '(let [(Bob x) (Ana x)]
+                     (let [(Cal x) (Bob x)]
+                       (let [(Dan x) (Cal x)]
+                         (Dan x))))
+                  {'Ana :yellow 'Bob :magenta 'Cal :red 'Dan :cyan}))
