@@ -1,6 +1,7 @@
 (ns klor.core
   (:require [clojure.set :refer [union]]
-            [metabox.core :refer [box]]))
+            [metabox.core :refer [box]]
+            [puget.printer :as puget]))
 
 ;;; Util
 
@@ -169,3 +170,69 @@
   "Return the result of role analyzing FORM in the context of ROLES."
   [roles form]
   (role-analyze-form {:roles roles} form))
+
+;;; Printing
+
+(defrecord Colored [color value])
+
+(def fg-colors
+  ;; Taken from `puget.color.ansi/sgr-code`.
+  [:red :cyan :yellow :magenta :blue :green :white :black])
+
+(def bg-colors
+  ;; Taken from `puget.color.ansi/sgr-code`.
+  [:bg-red :bg-cyan :bg-yellow :bg-magenta
+   :bg-blue :bg-green :bg-white :bg-black])
+
+(defn make-color-scheme [color]
+  ;; Taken from `puget.printer/*options*`.
+  {:delimiter [:bold color]
+   :tag [:bold color]
+   :nil [:bold color]
+   :boolean [:bold color]
+   :number [:bold color]
+   :string [:bold color]
+   :character [:bold color]
+   :keyword [:bold color]
+   :symbol [:bold color]
+   :function-symbol [:bold color]
+   :class-delimiter [:bold color]
+   :class-name [:bold color]})
+
+(defn colored-handler [opts colored]
+  (puget/cprint-str
+   (:value colored)
+   (merge opts {:color-scheme (make-color-scheme (:color colored))})))
+
+(defn to-colored [roles form]
+  (let [{:keys [role]} (meta form)]
+    (->Colored (or (roles role) :white)
+               (cond
+                 (vector? form) (mapv (partial to-colored roles) form)
+                 (seq? form) (map (partial to-colored roles) form)
+                 :else (unmetaify form)))))
+
+(defn print-colored
+  "Print a role-analyzed FORM with syntax coloring, using one color for per role.
+
+  COLORS maps each role to a color. By default, colors are taken from
+  `fg-colors`."
+  ([form]
+   (print-colored form (zipmap (:roles (meta form)) fg-colors)))
+  ([form colors]
+   (-> (to-colored colors form)
+       (puget/cprint {:print-handlers {klor.core.Colored colored-handler}}))))
+
+(comment
+  (print-colored (role-analyze '#{Ana Bob Cal Dan}
+                               '(let [(Ana x) (Ana y)]
+                                  (let [(Bob y) (Cal b)]
+                                    (let [(Cal z) (Dan c)]
+                                      (Dan w))))))
+  (print-colored (role-analyze '#{Ana Bob Cal Dan}
+                               '(let [(Ana x) (Ana 123)]
+                                  (let [(Bob y) (Cal false)]
+                                    (let [(Cal z) (Dan c)]
+                                      (Dan a b (Ana w))))))
+                 {'Ana :yellow 'Bob :magenta 'Cal :red 'Dan :cyan})
+  )
