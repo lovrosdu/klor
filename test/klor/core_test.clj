@@ -1,7 +1,22 @@
 (ns klor.core-test
-  (:require [clojure.set :refer [union]]
+  (:require [clojure.pprint :as pp]
+            [clojure.set :refer [union]]
             [clojure.test :refer :all]
             [klor.core :refer :all]))
+
+;;; Printing
+
+(defn pprint-metabox-dispatch []
+  (let [prev pp/*print-pprint-dispatch*]
+    (fn [x]
+      (pp/with-pprint-dispatch prev
+        (when (instance? metabox.MetaBox x)
+          (#'pp/pprint-meta x))
+        (pp/pprint (unmetaify x))))))
+
+(use-fixtures :once #(pp/with-pprint-dispatch (pprint-metabox-dispatch)
+                       (binding [*print-meta* true]
+                         (%))))
 
 ;;; Role Expansion
 
@@ -65,18 +80,29 @@
 
 ;;; Role Analysis
 
-(defn role-tags
-  "Return a tree equal in structure to X, except with all `:tag` metadata keys
-  renamed to `:role`, and `:roles` set to `:any`. If `:tag` doesn't exist,
-  `:role` is set to `:any`."
+(defn role-from-tag
+  "Return a tree equal in structure to X, except with the metadata of its nodes
+  and leaves altered in the following way:
+
+  - If `:role` or `:roles` exist, don't adjust the respective key.
+  - Otherwise, set `:role` and `:roles` to `:any`.
+  - Additionally, if `:tag` is present, set `:role` to its value and remove
+  `:tag`.
+
+  Primitive values that cannot hold metadata are boxed into a `MetaBox` using
+  `metaify`."
   [x]
   (let [{:keys [tag] :as m} (meta x)
-        x (cond (vector? x) (mapv role-tags x)
-                (seq? x) (apply list (map role-tags x))
+        x (cond (vector? x) (mapv role-from-tag x)
+                (seq? x) (apply list (map role-from-tag x))
                 :else x)]
-    (with-meta (metaify x)
-      (-> (merge m {:role :any :roles :any} (and tag {:role tag}))
-          (dissoc :tag)))))
+    (as-> m m
+      (merge {:role :any :roles :any} (and tag {:role tag}) m)
+      (dissoc m :tag)
+      ;; NOTE: Coerce an empty map returned by `dissoc` to nil. Unlike nil,
+      ;; empty maps are printed when printing metadata.
+      (if (seq m) m nil)
+      (metaify x m))))
 
 (defn role-meta=
   "Compare the `:role` and `:roles` metadata of X and Y for equality,
@@ -111,13 +137,37 @@
          (every? identity (map roled= x y))
          (= (unmetaify x) (unmetaify y)))))
 
+(defn role-meta-only [x]
+  "Return a tree equal in structure to X, except with the metadata of its nodes
+  and leaves altered so that only the `:role` and `:roles` keys are present, if
+  any."
+  (let [m (meta x)
+        x (cond (vector? x) (mapv role-meta-only x)
+                (seq? x) (apply list (map role-meta-only x))
+                :else x)]
+    (as-> (select-keys m [:role :roles]) m
+      ;; NOTE: Coerce an empty map returned by `select-keys` to nil. Unlike nil,
+      ;; empty maps are printed when printing metadata.
+      (if (seq m) m nil)
+      (with-meta (metaify x) m))))
+
+(defmethod assert-expr 'role-analyze= [msg [_ expected actual]]
+  `(let [expected# (role-from-tag ~expected)
+         actual# ~actual
+         result# (roled= expected# actual#)]
+     (binding [*print-meta* true]
+       (do-report {:type (if result# :pass :fail) :message ~msg
+                   :expected (role-meta-only expected#)
+                   :actual (role-meta-only actual#)}))
+    result#))
+
 (defmacro role-analyzes
   {:style/indent 1}
   [roles & pairs]
   (let [sym (gensym "roles")]
     `(let [~sym (set ~roles)]
        (do ~@(for [[from to] pairs]
-               `(is (roled= (role-analyze ~sym ~from) (role-tags ~to))))))))
+               `(is (~'role-analyze= ~to (role-analyze ~sym ~from))))))))
 
 (deftest role-analyze-primitive
   (role-analyzes []
@@ -125,7 +175,7 @@
     ['(Ana 123) '(Ana 123)])
 
   (role-analyzes '[Ana]
-    ['(Ana 123) ^Ana (metaify 123)]
+    ['(Ana 123) (metaify 123 {:role 'Ana :roles :any})]
     ['(Bob 123) '(Bob 123)]))
 
 (deftest role-analyze-symbol
