@@ -223,7 +223,7 @@
    (-> (to-colored colors form)
        (puget/cprint {:print-handlers {klor.core.Colored colored-handler}}))))
 
-(comment
+(defn -main []
   (print-colored (role-analyze '#{Ana Bob Cal Dan}
                                '(let [(Ana x) (Ana y)]
                                   (let [(Bob y) (Cal b)]
@@ -234,5 +234,4 @@
                                   (let [(Bob y) (Cal false)]
                                     (let [(Cal z) (Dan c)]
                                       (Dan a b (Ana w))))))
-                 {'Ana :yellow 'Bob :magenta 'Cal :red 'Dan :cyan})
-  )
+                 {'Ana :yellow 'Bob :magenta 'Cal :red 'Dan :cyan}))

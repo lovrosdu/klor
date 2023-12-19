@@ -6,4 +6,5 @@
   :dependencies [[org.clojure/clojure "1.10.3"]
                  [metabox/metabox "0.2.0"]
                  [mvxcvi/puget "1.3.4"]]
+  :main klor.core
   :repl-options {:init-ns klor.core})
