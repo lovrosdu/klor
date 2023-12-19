@@ -18,11 +18,20 @@
        (let [ns (some-> sym namespace symbol)]
          (or (and (contains? roles ns) [ns (symbol (name sym))]) nil))))
 
+(defn merge-meta [x & {:as m}]
+  "Return X with metadata that's the result of merging M into X's existing
+  metadata (keys in M take precedence)."
+  (vary-meta x #(merge % m)))
+
 (defn metaify
   "If X doesn't implement `clojure.lang.IObj`, return a `MetaBox` containing X so
-  that metadata can be attached. Otherwise, return X."
-  [x]
-  (if (instance? clojure.lang.IObj x) x (box x)))
+  that metadata can be attached. Otherwise, return X.
+
+  If M is given, merge it into the metadata of X with `merge-meta`."
+  ([x]
+   (if (instance? clojure.lang.IObj x) x (box x)))
+  ([x & {:as m}]
+   (merge-meta (metaify x) m)))
 
 (defn unmetaify
   "If X is a `MetaBox`, return the value contained inside. Otherwise, return X."
@@ -126,7 +135,7 @@
 
 (defmethod role-analyze-form :atom [ctx form]
   (if-let [role (:role ctx)]
-    (with-meta (metaify form) {:role role :roles #{role}})
+    (metaify form {:role role :roles #{role}})
     (throw (ex-info (format "Unlocated form %s" form)
                     {:type :klor/unlocated-form :form form}))))
 
@@ -136,9 +145,9 @@
 
 (defmethod role-analyze-form 'do [ctx [_ & body]]
   (let [body (map (partial role-analyze-form ctx) body)]
-    (with-meta `(~'do ~@body)
-      {:role (:role (meta (last body)))
-       :roles (apply role-union body)})))
+    (merge-meta `(~'do ~@body)
+                {:role (:role (meta (last body)))
+                 :roles (apply role-union body)})))
 
 (defn role-analyze-form-let-binding [ctx binding]
   (mapv (partial role-analyze-form ctx) binding))
@@ -147,24 +156,24 @@
   (let [body (map (partial role-analyze-form ctx) body)
         bindings (mapcat (partial role-analyze-form-let-binding ctx)
                          (partition 2 bindings))]
-    (with-meta `(~'let [~@bindings] ~@body)
-      {:role (:role (meta (last body)))
-       :roles (apply role-union (concat bindings body))})))
+    (merge-meta `(~'let [~@bindings] ~@body)
+                {:role (:role (meta (last body)))
+                 :roles (apply role-union (concat bindings body))})))
 
 (defmethod role-analyze-form 'if [ctx [_ cond then else :as form]]
   (let [[cond then else] (map (partial role-analyze-form ctx) [cond then else])]
     (if (= (:role (meta then)) (:role (meta else)))
-      (with-meta `(~'if ~cond ~then ~else)
-        {:role (:role (meta then))
-         :roles (role-union cond then else)})
+      (merge-meta `(~'if ~cond ~then ~else)
+                  {:role (:role (meta then))
+                   :roles (role-union cond then else)})
       (throw (ex-info "Differing result roles in branches"
                       {:type :klor/differing-result-roles :form form})))))
 
 (defmethod role-analyze-form 'select [ctx [_ & body]]
   (let [body (map (partial role-analyze-form ctx) body)]
-    (with-meta `(~'select ~@body)
-      {:role (:role (meta (last body)))
-       :roles (apply role-union body)})))
+    (merge-meta `(~'select ~@body)
+                {:role (:role (meta (last body)))
+                 :roles (apply role-union body)})))
 
 (defn role-analyze
   "Return the result of role analyzing FORM in the context of ROLES."
