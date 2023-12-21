@@ -30,7 +30,7 @@
 
 (deftest role-expand-symbol
   (role-expands []
-    ['x 'x]
+    ['x     'x]
     ['Ana/x 'Ana/x])
 
   (role-expands '[Ana]
@@ -201,6 +201,7 @@
 
   (role-analyzes '[Ana Bob]
     ['(do (Ana x) (Bob y))       '(do ^Ana x ^Bob y)]
+    ['(Ana (do x (Bob y)))       '(do ^Ana x ^Bob y)]
     ['(do (Ana x) (Bob y))       '^Bob (do x y)]
     ['(Ana (do (Ana x) (Bob y))) '^Bob (do x y)]))
 
@@ -218,6 +219,7 @@
 
   (role-analyzes '[Ana Bob]
     ['(let [(Ana x) (Bob y)])  '(let [^Ana x ^Bob y])]
+    ['(Ana (let [x (Bob y)]))  '(let [^Ana x ^Bob y])]
     ['(let [] (Ana x) (Bob y)) '^Bob (let [] x y)]
     ['(Ana (let [] (Bob x)))   '^Bob (let [] x)]))
 
@@ -233,6 +235,7 @@
 
   (role-analyzes '[Ana Bob]
     ['(if (Ana x) (Bob z) (Bob y)) '(if ^Ana x ^Bob z ^Bob y)]
+    ['(Ana (if x (Bob z) (Bob y))) '(if ^Ana x ^Bob z ^Bob y)]
     ['(if (Ana x) (Bob z) (Bob y)) '^Bob (if x z y)]
     ['(Ana (if x (Bob z) (Bob y))) '^Bob (if x z y)]
     ;; ['(if (Ana x) (Bob z) (Cal y)) :klor/differing-result-roles]
@@ -250,6 +253,7 @@
 
   (role-analyzes '[Ana Bob]
     ['(select (Ana x) (Bob y)) '(select ^Ana x ^Bob y)]
+    ['(Ana (select x (Bob y))) '(select ^Ana x ^Bob y)]
     ['(select (Ana x) (Bob y)) '^Bob (select x y)]
     ['(Ana (select (Bob x)))   '^Bob (select x)]))
 
