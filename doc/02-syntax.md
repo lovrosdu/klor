@@ -1,12 +1,107 @@
 # Syntax
 
-Being embedded in Clojure, a Lispy language, the "surface syntax" of Klor is naturally based on S-expressions.
+Being embedded in Clojure, a Lispy language, the "surface syntax" of Klor is naturally based on S-expressions. We explain the subset of S-expressions that are valid Klor expressions bottom-up.
+
+## Basic expressions
+
+Every Clojure expression is an expression in Klor, including symbols, numbers, booleans, vectors, maps, sets, lists, functions and their applications etc. Similarly, every Clojure type is a type in Klor, checked dynamically by the Clojure runtime system.
+
+## Role expressions
+
+Every basic expression in Klor is located at a role. For instance:
+
+```
+;; Value 4 is located at role Ana
+(Ana 4)
+```
+
+In general, the syntax of role expressions is as follows:
+
+```
+(<role> <expr>*)
+```
+
+Some more examples:
+
+```
+(Ana 4)
+(Ana 4 5 6)
+(Ana [4 5 6])
+(Ana (inc 9))
+(Ana (println "foo"))
+```
+
+## Choreographic expressions
+
+A choreographic expression is an expression that is capable of involving more than one role (i.e., it consists of sub-expressions at different locations). This allows for performing communications between roles. 
+
+There are two classes of choreographic expressions: non-special forms and [special forms](https://clojure.org/reference/special_forms) for control flow.
+
+### Non-special forms
+
+For any non-special operator `f`, if `(f e1 ... en)` is located at `q`, and if `ei` is located at `p`, then there is a communication of the value `vi` of `ei` from `p` to `q`. When all communications have happened, `q` computes `(f v1 ... vn)`. For instance:
+
+```
+;; Ana's 4 is communicated from her to Bob.
+(Bob (Ana 4)))
+
+;; Bob's value of x is communicated from him to Ana. Then Ana increments that value.
+(Ana (inc (Bob x)))
+
+;; Ana's and Bob's values are communicated from them to Cal, who adds them.
+(Cal (+ (Ana 4) (Bob 5)))
+```
+
+In general, the syntax of communications for non-special forms is as follows:
+
+```
+(<role> (... (<role> ...) ...))
+```
+
+For special forms, the communication rules follow the same principle, but their special syntax need to be treated specially.
+
+### Special forms
+
+Just as special forms in Clojure, special forms in Klor have special evaluation rules.
+
+   - If
+       - c@a, t@a, e@a: local, a to outer context
+       - c@a, t@b, e@b: choreo, a to b within if, b to outside
+       - c@a, t@b, e@c: ,... error. ...
+   - Do
+       - (do e1 e2 ... en@rn): free for all, rn to outer
+       - choreographic sequencing
+   - Let
+       - (let [v1@p1 e1@q1 ...] e@r ...):
+           - if pi = qi: i-th binding is local, otherwise communication
+           - last expression in body to outer
+           - choreographic sequencing
+   - Select
+       - like do, used for projection
+
+## Embedding choreographies in Clojure
+
 Choreographic functions are defined using the `defchor` macro, with the following basic syntax:
 
 ```clojure
 (defchor <name> <role-list> <param-list>
   <body>)
 ```
+
+TODO: Refer back to role expressions
+
+....
+
+## Full example: Buyer-Seller
+
+....
+
+ 
+  
+
+
+
+
 
 ## Specifying Roles
 
