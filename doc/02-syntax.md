@@ -9,24 +9,24 @@ In the Common Lisp tradition, an expression is sometimes also called a [*form*](
 
 ## Basic Expressions
 
-A *basic expression* is any expression that is not a Clojure collection (list, vector, map or set) -- booleans, numbers, characters, strings, symbols, keywords and nil.
+A **basic expression** is any expression that is not a Clojure collection (list, vector, map or set) -- booleans, numbers, characters, strings, symbols, keywords and nil.
 
 ## Role Expressions
 
 One of the biggest considerations of a choreographic language is how the programmer specifies which role is involved in which part of a choreography.
 The programmer needs the ability to annotate the subexpressions of the choreography with their roles, for example to specify the location of a literal value, the source and destination of a communication, or the location of a local computation.
-An expression annotated with a role is said to be *located* at that role.
+An expression annotated with a role is said to be **located** at that role.
 
 Assume for now that there exists a set of roles consisting of `Ana`, `Bob`, `Cal`, `Dan` and `Eli` which will be used in examples.
 We will discuss later how roles are actually introduced within a Klor choreography.
 
-A Klor expression can be annotated with a role using a *role expression*.
+A Klor expression can be annotated with a role using a **role expression**.
 A role expression is of the form `(<role> <expr>*)` and denotes that each `<expr>` is located at `<role>`.
-Role expressions can be nested arbitrarily and an expression is located at the role specified by the innermost enclosing role expression, which we call the *current* or *active role* for that expression.
+Role expressions can be nested arbitrarily and an expression is located at the role specified by the innermost enclosing role expression, which we call the **active role** for that expression.
 This works in a manner similar to lexical scope, with the active role propagating to all appropriate subexpressions of `<expr>` (just like a lexical binding's scope propagates to all subexpressions, unless shadowed).
 For example, in the expression `(Ana x (Bob y (Cal z)))`, `x` and `(Bob y (Cal z))` are located at `Ana`, `y` and `(Cal z)` are located at `Bob`, and `z` is located at `Cal`.
 
-To make programs easier to read, Klor also has *role-qualified symbols*.
+To make programs easier to read, Klor also has **role-qualified symbols**.
 A role-qualified symbol is of the form `<role>/<name>` and denotes the symbol `<name>` while simultaneously annotating it as being located at `<role>`.
 For example, `Ana/x` and `Bob/y` denote the symbols `x` and `y` located at `Ana` and `Bob`, respectively.
 Role-qualified symbols are essentially just syntax sugar and are equivalent to the role expression `(<role> <name>)`.
@@ -36,18 +36,18 @@ Both role expressions and role-qualified symbols are designed to work within the
 
 ## Choreographic Expressions and Communications
 
-A *choreographic expression* is an expression that involves one or more roles, i.e. one that can contain subexpressions located at different roles, which allows for communications between them.
-A choreographic expression is either a basic expression or a *compound expression*, which is a Clojure collection (a list, vector, map or set) of a certain structure.
+A **choreographic expression** is an expression that involves one or more roles, i.e. one that can contain subexpressions located at different roles, which allows for communications between them.
+A choreographic expression is either a basic expression or a **compound expression**, which is a Clojure collection (a list, vector, map or set) of a certain structure.
 Role expressions mentioned previously are just one particular kind of compound expression.
 
-As is customary in Lisps, compound expressions that are lists are treated as uses of *operators*, which can be *functions* or *special operators*.
+As is customary in Lisps, compound expressions that are lists are treated as uses of **operators**, which can be **functions** or **special operators**.
 Non-list compound expressions (vectors, maps and sets) don't have a similar special interpretation and are instead used to construct a collection of the corresponding type, like in Clojure.
 
-Unlike traditional choreographic languages that come with explicit syntactic primitives for specifying communication, communications in Klor are specified *implicitly*.
+Unlike traditional choreographic languages that come with explicit syntactic primitives for specifying communication, communications in Klor are specified **implicitly**.
 This is done by tracking the transitions between roles across subexpressions, determined wholly from the lexical structure of the choreography.
-In general, communications are done *inside out*: the results of subexpressions are communicated to the roles of expressions that enclose them, if the locations of the two are different.
+In general, communications are done **inside out**: the results of subexpressions are communicated to the roles of expressions that enclose them, if the locations of the two are different.
 
-Despite being implicit in the structure of the code, communications in Klor are still *deterministic* and are not silently injected at the compiler's discretion.
+Despite being implicit in the structure of the code, communications in Klor are still **deterministic** and are not silently injected at the compiler's discretion.
 The programmer retains enough control to arrange when and in what order the communications are done.
 Below we detail the syntax of each kind of compound expression and the communications it prescribes.
 
@@ -181,12 +181,12 @@ Choreographies in Klor are defined using the `defchor` macro with the following 
 
 `<name>` is a symbol that names the choreography.
 
-The *role vector* serves to introduce the roles participating in the choreography.
+The **role vector** serves to introduce the roles participating in the choreography.
 Each `<role>` is an unqualified symbol.
 Role symbols use TitleCase by convention.
 
 Choreographies are functions and can therefore accept zero or more parameters.
-The second vector is the *parameter vector* and contains zero or more binders as in `let`, all of which must be located.
+The second vector is the **parameter vector** and contains zero or more binders as in `let`, all of which must be located.
 
 Finally, the body of a choreography is a sequence of zero or more choreographic expressions, forming an implicit `do` block.
 
