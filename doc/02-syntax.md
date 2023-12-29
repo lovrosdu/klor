@@ -1,190 +1,234 @@
 # Syntax
 
-Being embedded in Clojure, a Lispy language, the "surface syntax" of Klor is naturally based on S-expressions. We explain the subset of S-expressions that are valid Klor expressions bottom-up.
+Being embedded in Clojure, the lower-level "surface syntax" of Klor naturally matches the syntax accepted by the [Clojure reader](https://clojure.org/reference/reader), called [Clojure data syntax](https://clojure.org/reference/reader#_extensible_data_notation_edn).
+At a higher-level however, the syntax of Klor's expressions consists of Clojure data structures such as symbols, lists, vectors, etc.
 
-## Basic expressions
+Like Clojure and other Lisps, Klor is an expression-oriented language.
+Below, we describe three important classes of Klor expressions.
+In the Common Lisp tradition, an expression is sometimes also called a [*form*](https://www.lispworks.com/documentation/lw50/CLHS/Body/26_glo_f.htm#form).
 
-Every Clojure expression is an expression in Klor, including symbols, numbers, booleans, vectors, maps, sets, lists, functions and their applications etc. Similarly, every Clojure type is a type in Klor, checked dynamically by the Clojure runtime system.
+## Basic Expressions
 
-## Role expressions
+A *basic expression* is any expression that is not a Clojure collection (list, vector, map or set) -- booleans, numbers, characters, strings, symbols, keywords and nil.
 
-Every basic expression in Klor is located at a role. For instance:
+## Role Expressions
+
+One of the biggest considerations of a choreographic language is how the programmer specifies which role is involved in which part of a choreography.
+The programmer needs the ability to annotate the subexpressions of the choreography with their roles, for example to specify the location of a literal value, the source and destination of a communication, or the location of a local computation.
+An expression annotated with a role is said to be *located* at that role.
+
+Assume for now that there exists a set of roles consisting of `Ana`, `Bob`, `Cal`, `Dan` and `Eli` which will be used in examples.
+We will discuss later how roles are actually introduced within a Klor choreography.
+
+A Klor expression can be annotated with a role using a *role expression*.
+A role expression is of the form `(<role> <expr>*)` and denotes that each `<expr>` is located at `<role>`.
+Role expressions can be nested arbitrarily and an expression is located at the role specified by the innermost enclosing role expression, which we call the *current* or *active role* for that expression.
+This works in a manner similar to lexical scope, with the active role propagating to all appropriate subexpressions of `<expr>` (just like a lexical binding's scope propagates to all subexpressions, unless shadowed).
+For example, in the expression `(Ana x (Bob y (Cal z)))`, `x` and `(Bob y (Cal z))` are located at `Ana`, `y` and `(Cal z)` are located at `Bob`, and `z` is located at `Cal`.
+
+To make programs easier to read, Klor also has *role-qualified symbols*.
+A role-qualified symbol is of the form `<role>/<name>` and denotes the symbol `<name>` while simultaneously annotating it as being located at `<role>`.
+For example, `Ana/x` and `Bob/y` denote the symbols `x` and `y` located at `Ana` and `Bob`, respectively.
+Role-qualified symbols are essentially just syntax sugar and are equivalent to the role expression `(<role> <name>)`.
+They are distinguished from Clojure's usual namespace-qualified symbols by requiring that `<role>` be a name of a previously introduced role.
+
+Both role expressions and role-qualified symbols are designed to work within the constraints of Clojure and its data syntax, as Clojure's reader is not extensible (unlike e.g. Common Lisp's; see [reader macros](https://www.lispworks.com/documentation/lw71/CLHS/Body/26_glo_r.htm#reader_macro)).
+
+## Choreographic Expressions and Communications
+
+A *choreographic expression* is an expression that involves one or more roles, i.e. one that can contain subexpressions located at different roles, which allows for communications between them.
+A choreographic expression is either a basic expression or a *compound expression*, which is a Clojure collection (a list, vector, map or set) of a certain structure.
+Role expressions mentioned previously are just one particular kind of compound expression.
+
+As is customary in Lisps, compound expressions that are lists are treated as uses of *operators*, which can be *functions* or *special operators*.
+Non-list compound expressions (vectors, maps and sets) don't have a similar special interpretation and are instead used to construct a collection of the corresponding type, like in Clojure.
+
+Unlike traditional choreographic languages that come with explicit syntactic primitives for specifying communication, communications in Klor are specified *implicitly*.
+This is done by tracking the transitions between roles across subexpressions, determined wholly from the lexical structure of the choreography.
+In general, communications are done *inside out*: the results of subexpressions are communicated to the roles of expressions that enclose them, if the locations of the two are different.
+
+Despite being implicit in the structure of the code, communications in Klor are still *deterministic* and are not silently injected at the compiler's discretion.
+The programmer retains enough control to arrange when and in what order the communications are done.
+Below we detail the syntax of each kind of compound expression and the communications it prescribes.
+
+### Functions
+
+An invocation of a function operator `<op>` is of the form `(<op> <expr>*)`.
+The active role is propagated to `<op>` and each `<expr>`.
+`<op>` is not allowed to be located at a role different from the role of the whole expression.
+
+Function invocations use a single general communication rule.
+If `(<op> <expr>*)` is located at role `<role-2>` and any argument `<expr>` is located at a different role `<role-1>`, then `<role-1>` will have to communicate the result of `<expr>` to `<role-2>` before `<role-2>` can carry out the remainder of the computation, which is the invocation of `<op>` itself.
+For example:
 
 ```
-;; Value 4 is located at role Ana
-(Ana 4)
+;; - Ana determines the value of x and sends it to Bob,
+;; - Bob receives the value, increments it and sends it back to Ana,
+;; - Ana receives the final value and prints it out.
+
+(Ana (println (Bob (inc (Ana x)))))
+
+;; - Ana and Bob independently send the values of x and y to Cal,
+;; - Cal receives the two values and adds them together.
+
+(Cal (+ (Ana x) (Bob y)))
 ```
 
-In general, the syntax of role expressions is as follows:
+### Special Operators
 
-```
-(<role> <expr>*)
-```
+Special operators implement the primitive operations of a language such as control flow and variable binding.
+Klor borrows some of [Clojure's special operators](https://clojure.org/reference/special_forms) and retains their familiar syntax, but enhances them with choreographic semantics.
+The special operators of Klor are:
 
-Some more examples:
+- `(do <expr>*)`
 
-```
-(Ana 4)
-(Ana 4 5 6)
-(Ana [4 5 6])
-(Ana (inc 9))
-(Ana (println "foo"))
-```
+  The active role is propagated to each `<expr>`.
+  Only the result of the last `<expr>`, if any, is communicated, if the location of `<expr>` is different from the location of the whole expression.
 
-## Choreographic expressions
+- `(let [<binding>*] <body-expr>*)`
 
-A choreographic expression is an expression that is capable of involving more than one role (i.e., it consists of sub-expressions at different locations). This allows for performing communications between roles. 
+  Each `<binding>` is of the form `<binder> <init-expr>`.
+  A `<binder>` is anything that is accepted by Clojure's own `let` -- a plain symbol or a sequential or associative destructuring pattern.
 
-There are two classes of choreographic expressions: non-special forms and [special forms](https://clojure.org/reference/special_forms) for control flow.
+  The active role is propagated to each `<binder>`, `<init-expr>` and `<body-expr>`.
+  Role expressions are allowed within `<binder>`, but it is forbidden for parts of a binder to be located at different roles.
+  Therefore, it is only ever useful for `<binder>` to contain a single top-level role expression, if any.
+  Role-qualified symbols come in handy as binders.
 
-### Non-special forms
+  If the location of an `<init-expr>` is different from the location of its corresponding `<binder>`, the value of `<init-expr>` is communicated before it is bound according to `<binder>` at the destination.
+  A communication within the body `<body-expr>*` is determined as in `do`.
 
-For any non-special operator `f`, if `(f e1 ... en)` is located at `q`, and if `ei` is located at `p`, then there is a communication of the value `vi` of `ei` from `p` to `q`. When all communications have happened, `q` computes `(f v1 ... vn)`. For instance:
+- `(if <cond> <then> <else>?)`
 
-```
-;; Ana's 4 is communicated from her to Bob.
-(Bob (Ana 4)))
+  The active role is propagated to `<cond>`, `<then>` and `<else>`.
+  The result of either `<then>` or `<else>`, if any, is communicated only if its location is different from the location of the whole expression.
 
-;; Bob's value of x is communicated from him to Ana. Then Ana increments that value.
-(Ana (inc (Bob x)))
+- `(select <label> <expr>*)`
 
-;; Ana's and Bob's values are communicated from them to Cal, who adds them.
-(Cal (+ (Ana 4) (Bob 5)))
-```
+  `select` is a Klor-specific special operator that is relevant for the purposes of projection, but otherwise behaves just like `do`.
 
-In general, the syntax of communications for non-special forms is as follows:
+### Role Expressions
 
-```
-(<role> (... (<role> ...) ...))
-```
-
-For special forms, the communication rules follow the same principle, but their special syntax need to be treated specially.
-
-### Special forms
-
-Just as special forms in Clojure, special forms in Klor have special evaluation rules.
-
-   - If
-       - c@a, t@a, e@a: local, a to outer context
-       - c@a, t@b, e@b: choreo, a to b within if, b to outside
-       - c@a, t@b, e@c: ,... error. ...
-   - Do
-       - (do e1 e2 ... en@rn): free for all, rn to outer
-       - choreographic sequencing
-   - Let
-       - (let [v1@p1 e1@q1 ...] e@r ...):
-           - if pi = qi: i-th binding is local, otherwise communication
-           - last expression in body to outer
-           - choreographic sequencing
-   - Select
-       - like do, used for projection
-
-## Embedding choreographies in Clojure
-
-Choreographic functions are defined using the `defchor` macro, with the following basic syntax:
+Aside from annotating expressions, role expressions are also treated as implicit `do` blocks, which is the reason why they can enclose more than one expression: `(<role> <expr>*)`.
+Like role-qualified symbols, this is a convenience feature that makes Klor code more readable and reduces the level of nesting.
+For example:
 
 ```clojure
-(defchor <name> <role-list> <param-list>
-  <body>)
+;; - Ana sends 1 to Bob,
+;; - Bob receives the value and sends it to Cal.
+
+(Cal (Bob (Ana 1)))
+
+;; - Ana sends 1 to Bob,
+;; - Bob receives the value and sends it to Cal,
+;; - but Cal's 2 and Dan's 3 are not communicated.
+
+(Cal (Dan 3) (Bob (Cal 2) (Ana 1)))
 ```
 
-TODO: Refer back to role expressions
+### Non-list Compound Expressions
 
-....
+Non-list compound expressions include vectors, maps and sets: `[<expr>*]`, `{<pair>*}` and `#{<expr>*}` (where `<pair>` is `<expr> <expr>`).
+Like in Clojure, they are effectively shorthands for creating a collection of elements given by the results of all `<expr>`s, but the same could be achieved by invoking the `vector`, `hash-map` and `hash-set` functions.
 
-## Full example: Buyer-Seller
-
-....
-
- 
-  
-
-
-
-
-
-## Specifying Roles
-
-One of the biggest considerations of a choreographic language is how the programmer specifies which and how many roles are involved in a choreography, and which role is involved in which part of the computation.
-In other words, when writing a choreography, the programmer needs the ability to annotate the subexpressions present within the choreography with their "locations", as well as specify the source and destination of each communication.
-
-In Klor, roles present in a choreography are introduced by its *role list*, which is a vector of symbols that name the roles.
-By convention, these symbols use TitleCase.
-Here is a choreography named `increment-chor` with two roles, `Ana` and `Bob`:
+Non-list compound expressions behave essentially the same as function calls when it comes to communications.
+Any `<expr>` whose location differs from the location of the whole expression is communicated before the collection can be assembled at the destination:
 
 ```clojure
-(defchor increment-chor [Ana Bob] <param-list>
-  <body>)
+;; No communications are done.
+
+(Ana [1 2 3])
+(Ana [(Ana 1) 2 3])
+(Ana [(Ana 1) (Ana 2) (Ana 3)])
+
+;; - Bob, Cal and Dan send 1, 2 and 3 to Ana,
+;; - Ana receives the values and constructs the vector [1 2 3].
+
+(Ana [(Bob 1) (Cal 2) (Dan 3)])
 ```
 
-Once roles have been introduced, the locations of a choreography's parameters and subexpressions of the body can be specified using *role-qualified symbols* and *role expressions* (also called *role forms*).
-Both of these features are designed to work within the constraints of Clojure and its S-expression syntax.
+### Summary
 
-Role-qualified symbols are of the form `<role>/<name>` and make use of Clojure namespaces to denote a location.
-For example, the role-qualified symbols `Ana/x` or `Bob/y` have `x` and `y` as their names, and are located at the roles `Ana` and `Bob`, respectively.
-Role-qualified symbols are distinguished from other namespace-qualified symbols by the fact that `<role>` has to be a role previously introduced by the enclosing choreography's role list.
+The following is an overview of the syntax of a Klor choreographic expression `<expr>`:
 
-Role expressions are of the form `(<role> <expr> ...)` and denote that each `<expr>` is located at `<role>`, unless further enclosed by another role expression.
-Because role expressions can be nested arbitrarily, an expression will only take on the innermost enclosing role as its location.
+```
+<expr> ::= <basic-expr> | <compound-expr>
 
-## Role Analysis
+<compound-expr>
+  ::= (<role> <expr>*)
+  | (do <expr>*)
+  | (let [<binding>*] <expr>*)
+  | (if <cond> <then> <else>?)
+  | (select <label> <expr>*)
+  | (<op> <expr>*)
+  | [expr*]
+  | {pair*}
+  | #{expr*}
 
-Before further analyzing the expressions of a choreography's body, Klor first traverses it to identify the involved roles.
-This is done in two phases: *role expansion* and *role analysis*.
+<pair> ::= <expr> <expr>
 
-Role expansion is the simple process of desugaring role-qualified symbols, as role expressions are in fact the more general mechanism of specifying locations.
-A role-qualified symbol of the form `<role>/<name>` desugars into `(<role> <name>)`.
-For example, the role-qualified symbol `Ana/x` would be expanded into `(Ana x)`.
+<binding> ::= <binder> <expr>
+```
 
-Role analysis is the process of traversing an expression and removing all occurrences of role expressions, while simultaneously annotating the enclosed subexpressions with their roles.
-Role expressions with multiple subexpressions, such as `(<role> <expr> ...)`, are converted to `do` expressions, `(do <expr> ...)`, while those with a single subexpression are just replaced with the subexpression itself.
-The current implementation tracks the roles through the use of Clojure metadata.
+# `defchor`: Embedding Choreographies in Clojure
 
-## Expressions
+Choreographies in Klor are defined using the `defchor` macro with the following syntax:
 
-Once role analysis is done, the expressions that are left resemble and for the most part behave just like standard Clojure expressions.
-Klor borrows some of Clojure's special operators and retains their familiar syntax, but enhances them with choreographic semantics.
-The (S-expression based) syntax of the currently supported special operators is:
+```clojure
+(defchor <name> [<role>+] [<binder>*]
+  <expr>*)
+```
 
-- `(let [<var> <expr> ...] <body>)`
-- `(do <expr> ...)`
-- `(if <cond> <then> <else>)`
-- `(select <label> <expr> ...)`
+`<name>` is a symbol that names the choreography.
 
-`select` is a Klor-specific special operator that is relevant for the purposes of projection, but otherwise behaves just like `do`.
+The *role vector* serves to introduce the roles participating in the choreography.
+Each `<role>` is an unqualified symbol.
+Role symbols use TitleCase by convention.
 
-Other compound expressions `(<op> <expr> ...)` that are not any of the above operators are treated as function and macro calls, as usual.
-The use of role-qualified symbols and role expressions is allowed within any subexpression of a compound expression.
+Choreographies are functions and can therefore accept zero or more parameters.
+The second vector is the *parameter vector* and contains zero or more binders as in `let`, all of which must be located.
 
-## Parameters
+Finally, the body of a choreography is a sequence of zero or more choreographic expressions, forming an implicit `do` block.
 
-Because choreographies are functions, each choreography specifies a list of parameters that it takes as input.
-The parameter list must be a vector of located symbols.
-Continuing our example, we have:
+## Example: The Increment Choreography
+
+Here is the full definition of the small increment example presented previously:
 
 ```clojure
 (defchor increment-chor [Ana Bob] [Ana/x]
-  <body>)
+  (Ana (println (Bob (+ 1 Ana/x)))))
 ```
 
-## Communications
+## Example: The Buyer--Seller Choreography
 
-Unlike traditional choreographic languages that come with explicit syntactic primitives for specifying communication, communications in Klor are specified implicitly.
-This is done by tracking the transitions between roles across subexpressions.
+This example shows how the classical buyer--seller choreography might be implemented in Klor.
+The two roles, `Buyer` and `Seller`, communicate in order for `Buyer` to buy a book from `Seller`:
 
-When an expression `e` located at role `Bob` makes use of a subexpression `s` located at role `Ana`, Klor specifies that the result of `s` must be communicated from `Ana` to `Bob` in order for `Bob` to carry out the remainder of the computation specified by `e`.
-To illustrate, here is the completed definition of our example:
+- `Buyer` sends `Seller` the title of the book,
+- `Seller` receives the title, looks up the price of the book and sends it to `Buyer`,
+- `Buyer` receives the price and decides whether or not to buy the book depending on its budget,
+- `Buyer` sends its decision to `Seller`, along with an address if necessary,
+- `Seller` receives the decision and possibly ships the book to the `Buyer`.
+
+Before we show the choreography in Klor, assume we model the problem using the following:
+
+- `order` is a map `{:title <string> :budget <number> :address <string>}`,
+- `catalogue` is an opaque value which we can pass to `price-of`,
+- `price-of` is a function that given the title and the catalogue returns the price of the book,
+- `ship!` is a side-effectful function that given the address executes the book shipment.
+
+Putting it all together, we might end up with the following:
 
 ```clojure
-(defchor increment-chor [Ana Bob] [Ana/x]
-  (Ana (print (Bob (+ 1 (Ana x))))))
+
+(defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
+  (let [Seller/title (Buyer (:title order))
+        Buyer/price (Seller (price-of title catalogue))]
+    (if (Buyer (>= (:budget order) price))
+      (select Buyer/ok
+        (let [Seller/address (Buyer (:address order))
+              Seller/date (Seller (ship! address))]
+          (Buyer (println "I'll get the book on" Seller/date))))
+      (select Buyer/ko
+        (Seller (println "Buyer changed his mind"))))))
 ```
-
-The choreography prescribes that:
-
-- `Ana` will determine the value of `x` and send it over to `Bob`,
-- `Bob` will receive the value, increment it and send it back to `Ana`,
-- `Ana` will receive the final value and print it out.
-
-While implicit in the structure of the code, communications in Klor are still deterministic and not silently injected by the compiler.
-The programmer retains control over when and in what order the communications are done.

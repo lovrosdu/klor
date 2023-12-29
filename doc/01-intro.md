@@ -5,7 +5,7 @@ Here we provide a quick introduction to get you up to speed, but for more detail
 A good starting point is [Introduction to Choreographies](https://doi.org/10.1017/9781108981491).
 
 In brief, choreographic programming is a paradigm where we program a distributed system from a *global viewpoint*.
-A distributed system involes multiple *roles* (participants, endpoints) that communicate (usually over a network) by passing messages between each other.
+A distributed system involes multiple *roles* (participants, locations, endpoints) that communicate (usually over a network) by passing messages between each other.
 
 The program that we write is called a **choreography**.
 The global view of the system's behavior provided by a choreography offers numerous advantages, the main one being that a compiler can automatically *project* (compile) the choreography to an implementation (executable code) for each of the roles.
