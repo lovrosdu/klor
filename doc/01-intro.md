@@ -1,6 +1,10 @@
 # Introduction
 
-We assume familiary with **choreographic programming** throughout this document.
+This document presents the design of **Klor**, a Clojure library whose goal is to provide support for **choreographic programming** in Clojure.
+
+## Background on Choreographies
+
+We assume familiary with choreographic programming throughout this document.
 Here we provide a quick introduction to get you up to speed, but for more details we recommend looking into the literature of choreographic programming.
 A good starting point is [Introduction to Choreographies](https://doi.org/10.1017/9781108981491).
 
@@ -15,11 +19,9 @@ Standard choreographic programming languages come with a syntactic primitive for
 For example, `p.e -> q.x` would be read as "the role `p` sends the result of expression `e` to role `q` who stores it into its variable `x`".
 Choreographic languages make it syntactically impossible to write communications that would result in mismatches or deadlocks.
 
-# Klor
+## Principles of Klor
 
-Klor is a Clojure library whose goal is to provide support for choreographic programming in Clojure.
-
-The main idea is to use macros to embed a choreographic, yet Clojure-like, programming language inside of Clojure.
+The main idea of Klor is to use macros to embed a choreographic, yet Clojure-like, programming language inside of Clojure.
 Since Clojure emphasizes a functional programming style with a rich set of immutable and persistent data structures, Klor follows suit and tries to move away from the traditional imperative approach to choreographic programming.
 
 In Klor, each choreography is therefore modeled as a function (called a **choreographic function**).
