@@ -68,7 +68,7 @@ The programmer retains enough control to arrange when and in what order the comm
 ## Choreographic Expressions
 
 A **choreographic expression** is a Klor expression that involves one or more role, i.e. one that can contain subexpressions located at different roles, which allows for communications between them.
-A choreographic expression is either a basic expression or a **compound expression** (a Clojure collection -- list, vector, map or set -- of a certain structure).
+A choreographic expression is either a **basic expression** or a **compound expression** (a Clojure collection -- list, vector, map or set -- of a certain structure).
 Role expressions mentioned above are just one particular kind of compound expression.
 
 As is customary in Lisps, list compound expressions are treated as applications of operators, which can be **functions** or **special operators**.
