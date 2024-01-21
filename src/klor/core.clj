@@ -46,22 +46,36 @@
 
 (defn role-expand-form-dispatch [ctx form]
   (cond
-    ;; Atom
-    (not (seq? form)) :atom
+    ;; Non-list compound form
+    (vector? form) :vector
+    (map? form) :map
+    (set? form) :set
     ;; Role form
-    (contains? (:roles ctx) (first form)) :role
-    ;; Other compound form
-    :else (first form)))
+    (and (seq? form) (contains? (:roles ctx) (first form))) :role
+    ;; Other list compound form
+    (seq? form) (first form)
+    ;; Atom
+    :else :atom))
 
 (defmulti role-expand-form #'role-expand-form-dispatch)
 
 (defmethod role-expand-form :default [ctx form]
+  ;; Invoked for any non-special operator OP.
   (apply list (map (partial role-expand-form ctx) form)))
 
 (defmethod role-expand-form :atom [ctx form]
   (if-let [[ns name] (role-qualified-symbol (:roles ctx) form)]
     `(~ns ~name)
     form))
+
+(defmethod role-expand-form :vector [ctx coll]
+  (mapv (partial role-expand-form ctx) coll))
+
+(defmethod role-expand-form :map [ctx coll]
+  (into {} (map #(mapv (partial role-expand-form ctx) %) coll)))
+
+(defmethod role-expand-form :set [ctx coll]
+  (into #{} (map (partial role-expand-form ctx) coll)))
 
 (defmethod role-expand-form :role [ctx [role & body]]
   `(~role ~@(map (partial role-expand-form ctx) body)))
@@ -118,12 +132,16 @@
 
 (defn role-analyze-form-dispatch [ctx form]
   (cond
-    ;; Atom
-    (not (seq? form)) :atom
+    ;; Non-list compound form
+    (vector? form) :vector
+    (map? form) :map
+    (set? form) :set
     ;; Role form
-    (contains? (:roles ctx) (first form)) :role
-    ;; Other compound form
-    :else (first form)))
+    (and (seq? form) (contains? (:roles ctx) (first form))) :role
+    ;; Other list compound form
+    (seq? form) (first form)
+    ;; Atom
+    :else :atom))
 
 (defmulti role-analyze-form #'role-analyze-form-dispatch)
 
@@ -131,6 +149,7 @@
   (apply union (map #(:roles (meta %)) forms)))
 
 (defmethod role-analyze-form :default [ctx [op & args]]
+  ;; Invoked for any non-special operator OP.
   (let [op (role-analyze-form ctx op)
         args (apply list (map (partial role-analyze-form ctx) args))]
     (merge-meta `(~op ~@args)
@@ -139,6 +158,19 @@
 (defmethod role-analyze-form :atom [ctx form]
   (let [role (:role ctx)]
     (metaify form {:role role :roles (if role #{role} #{})})))
+
+(defmethod role-analyze-form :vector [ctx coll]
+  (merge-meta (mapv (partial role-analyze-form ctx) coll)
+              {:role (:role ctx) :roles (apply role-union coll)}))
+
+(defmethod role-analyze-form :map [ctx coll]
+  (merge-meta (into {} (map #(mapv (partial role-analyze-form ctx) %) coll))
+              {:role (:role ctx)
+               :roles (apply role-union (mapcat identity coll))}))
+
+(defmethod role-analyze-form :set [ctx coll]
+  (merge-meta (into #{} (map (partial role-analyze-form ctx) coll))
+              {:role (:role ctx) :roles (apply role-union coll)}))
 
 (defmethod role-analyze-form :role [ctx [role & body]]
   (let [body (map (partial role-analyze-form (assoc ctx :role role)) body)]
