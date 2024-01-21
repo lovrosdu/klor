@@ -171,7 +171,6 @@
 
 (deftest role-analyze-primitive
   (role-analyzes []
-    ;; [123        :klor/unlocated-form]
     ['(Ana 123) '(Ana 123)])
 
   (role-analyzes '[Ana]
@@ -180,11 +179,9 @@
 
 (deftest role-analyze-symbol
   (role-analyzes []
-    ;; ['x       :klor/unlocated-form]
     ['(Ana x) '(Ana x)])
 
   (role-analyzes '[Ana]
-    ;; ['x :klor/unlocated-form]
     ['(Ana x) '^Ana x]
     ['(Bob x) '(Bob x)]))
 
@@ -237,8 +234,7 @@
     ['(if (Ana x) (Bob z) (Bob y)) '(if ^Ana x ^Bob z ^Bob y)]
     ['(Ana (if x (Bob z) (Bob y))) '(if ^Ana x ^Bob z ^Bob y)]
     ['(if (Ana x) (Bob z) (Bob y)) '^{:role nil} (if x z y)]
-    ['(Ana (if x (Bob z) (Bob y))) '^Ana (if x z y)]
-    ;; ['(if (Ana x) (Bob z) (Cal y)) :klor/differing-result-roles]))
+    ['(Ana (if x (Bob z) (Bob y))) '^Ana (if x z y)]))
 
 (deftest role-analyze-select
   (role-analyzes []

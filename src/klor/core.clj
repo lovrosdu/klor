@@ -91,7 +91,7 @@
 (defn role-expand
   "Return the result of role expanding FORM in the context of ROLES."
   [roles form]
-  (role-expand-form {:roles roles} form))
+  (role-expand-form {:role nil :roles roles} form))
 
 ;;; Role Analysis
 ;;;
@@ -137,10 +137,8 @@
                 {:role (:role ctx) :roles (apply role-union args)})))
 
 (defmethod role-analyze-form :atom [ctx form]
-  (if-let [role (:role ctx)]
-    (metaify form {:role role :roles #{role}})
-    (throw (ex-info (format "Unlocated form %s" form)
-                    {:type :klor/unlocated-form :form form}))))
+  (let [role (:role ctx)]
+    (metaify form {:role role :roles (if role #{role} #{})})))
 
 (defmethod role-analyze-form :role [ctx [role & body]]
   (let [body (map (partial role-analyze-form (assoc ctx :role role)) body)]
@@ -169,11 +167,8 @@
 
 (defmethod role-analyze-form 'if [ctx [_ cond then else :as form]]
   (let [[cond then else] (map (partial role-analyze-form ctx) [cond then else])]
-    (if (= (:role (meta then)) (:role (meta else)))
-      (merge-meta `(~'if ~cond ~then ~else)
-                  {:role (:role ctx) :roles (role-union cond then else)})
-      (throw (ex-info "Differing result roles in branches"
-                      {:type :klor/differing-result-roles :form form})))))
+    (merge-meta `(~'if ~cond ~then ~else)
+                {:role (:role ctx) :roles (role-union cond then else)})))
 
 (defmethod role-analyze-form 'select [ctx [_ & body]]
   (let [body (map (partial role-analyze-form ctx) body)]
@@ -183,7 +178,7 @@
 (defn role-analyze
   "Return the result of role analyzing FORM in the context of ROLES."
   [roles form]
-  (role-analyze-form {:roles roles} form))
+  (role-analyze-form {:role nil :roles roles} form))
 
 ;;; Printing
 
