@@ -56,7 +56,7 @@
 (defmulti role-expand-form #'role-expand-form-dispatch)
 
 (defmethod role-expand-form :default [ctx form]
-  form)
+  (apply list (map (partial role-expand-form ctx) form)))
 
 (defmethod role-expand-form :atom [ctx form]
   (if-let [[ns name] (role-qualified-symbol (:roles ctx) form)]
@@ -130,8 +130,11 @@
 (defn role-union [& forms]
   (apply union (map #(:roles (meta %)) forms)))
 
-(defmethod role-analyze-form :default [ctx form]
-  form)
+(defmethod role-analyze-form :default [ctx [op & args]]
+  (let [op (role-analyze-form ctx op)
+        args (apply list (map (partial role-analyze-form ctx) args))]
+    (merge-meta `(~op ~@args)
+                {:role (:role ctx) :roles (apply role-union args)})))
 
 (defmethod role-analyze-form :atom [ctx form]
   (if-let [role (:role ctx)]
