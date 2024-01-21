@@ -143,14 +143,18 @@
                     {:type :klor/unlocated-form :form form}))))
 
 (defmethod role-analyze-form :role [ctx [role & body]]
-  (role-analyze-form (assoc ctx :role role)
-                     (if (= (count body) 1) (first body) `(do ~@body))))
+  (let [body (map (partial role-analyze-form (assoc ctx :role role)) body)]
+    (merge-meta (if (and (= (count body) 1)
+                         (= (:role (meta (first body))) role))
+                  ;; Simplify the resulting expression if possible.
+                  (first body)
+                  `(do ~@body))
+                {:role role :roles (conj (apply role-union body) role)})))
 
 (defmethod role-analyze-form 'do [ctx [_ & body]]
   (let [body (map (partial role-analyze-form ctx) body)]
     (merge-meta `(~'do ~@body)
-                {:role (:role (meta (last body)))
-                 :roles (apply role-union body)})))
+                {:role (:role ctx) :roles (apply role-union body)})))
 
 (defn role-analyze-form-let-binding [ctx binding]
   (mapv (partial role-analyze-form ctx) binding))
@@ -160,23 +164,21 @@
         bindings (mapcat (partial role-analyze-form-let-binding ctx)
                          (partition 2 bindings))]
     (merge-meta `(~'let [~@bindings] ~@body)
-                {:role (:role (meta (last body)))
+                {:role (:role ctx)
                  :roles (apply role-union (concat bindings body))})))
 
 (defmethod role-analyze-form 'if [ctx [_ cond then else :as form]]
   (let [[cond then else] (map (partial role-analyze-form ctx) [cond then else])]
     (if (= (:role (meta then)) (:role (meta else)))
       (merge-meta `(~'if ~cond ~then ~else)
-                  {:role (:role (meta then))
-                   :roles (role-union cond then else)})
+                  {:role (:role ctx) :roles (role-union cond then else)})
       (throw (ex-info "Differing result roles in branches"
                       {:type :klor/differing-result-roles :form form})))))
 
 (defmethod role-analyze-form 'select [ctx [_ & body]]
   (let [body (map (partial role-analyze-form ctx) body)]
     (merge-meta `(~'select ~@body)
-                {:role (:role (meta (last body)))
-                 :roles (apply role-union body)})))
+                {:role ctx :roles (apply role-union body)})))
 
 (defn role-analyze
   "Return the result of role analyzing FORM in the context of ROLES."

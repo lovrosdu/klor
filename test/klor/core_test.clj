@@ -194,7 +194,7 @@
 
   (role-analyzes '[Ana]
     ['(do (Ana x)) '(do ^Ana x)]
-    ['(do (Ana x)) '^Ana (do x)]
+    ['(do (Ana x)) '^{:role nil} (do x)]
     ['(Ana (do x)) '(do ^Ana x)]
     ['(Ana (do x)) '^Ana (do x)]
     ['(do (Bob x)) '(do (Bob x))])
@@ -202,8 +202,8 @@
   (role-analyzes '[Ana Bob]
     ['(do (Ana x) (Bob y))       '(do ^Ana x ^Bob y)]
     ['(Ana (do x (Bob y)))       '(do ^Ana x ^Bob y)]
-    ['(do (Ana x) (Bob y))       '^Bob (do x y)]
-    ['(Ana (do (Ana x) (Bob y))) '^Bob (do x y)]))
+    ['(do (Ana x) (Bob y))       '^{:role nil} (do x y)]
+    ['(Ana (do (Ana x) (Bob y))) '^Ana (do x y)]))
 
 (deftest role-analyze-let
   (role-analyzes []
@@ -211,17 +211,17 @@
 
   (role-analyzes '[Ana]
     ['(let [(Ana x) (Ana y)])         '(let [^Ana x ^Ana y])]
-    ['(let [(Ana [x [y z]]) (Bob w)]) '(let [^Ana [x [y z] ^Bob w]])]
+    ['(let [(Ana [x [y z]]) (Bob w)]) '(let [^Ana [x [y z]] (Bob w)])]
     ['(let [] (Ana x))                '(let [] ^Ana x)]
-    ['(let [] (Ana x))                '^Ana (let [] x)]
+    ['(let [] (Ana x))                '^{:role nil} (let [] x)]
     ['(Ana (let [x y] z))             '(let [^Ana x ^Ana y] ^Ana z)]
     ['(let [(Bob x) (Bob y)] (Bob z)) '(let [(Bob x) (Bob y)] (Bob z))])
 
   (role-analyzes '[Ana Bob]
     ['(let [(Ana x) (Bob y)])  '(let [^Ana x ^Bob y])]
     ['(Ana (let [x (Bob y)]))  '(let [^Ana x ^Bob y])]
-    ['(let [] (Ana x) (Bob y)) '^Bob (let [] x y)]
-    ['(Ana (let [] (Bob x)))   '^Bob (let [] x)]))
+    ['(let [] (Ana x) (Bob y)) '^{:role nil} (let [] x y)]
+    ['(Ana (let [] (Bob x)))   '^Ana (let [] x)]))
 
 (deftest role-analyze-if
   (role-analyzes []
@@ -229,17 +229,16 @@
 
   (role-analyzes '[Ana]
     ['(if (Ana x) (Ana z) (Ana y)) '(if ^Ana x ^Ana z ^Ana y)]
-    ['(if (Ana x) (Ana z) (Ana y)) '^Ana (if x z y)]
+    ['(if (Ana x) (Ana z) (Ana y)) '^{:role nil} (if x z y)]
     ['(Ana (if x z y))             '(if ^Ana x ^Ana z ^Ana y)]
     ['(if (Bob x) (Bob z) (Bob y)) '(if (Bob x) (Bob z) (Bob y))])
 
   (role-analyzes '[Ana Bob]
     ['(if (Ana x) (Bob z) (Bob y)) '(if ^Ana x ^Bob z ^Bob y)]
     ['(Ana (if x (Bob z) (Bob y))) '(if ^Ana x ^Bob z ^Bob y)]
-    ['(if (Ana x) (Bob z) (Bob y)) '^Bob (if x z y)]
-    ['(Ana (if x (Bob z) (Bob y))) '^Bob (if x z y)]
-    ;; ['(if (Ana x) (Bob z) (Cal y)) :klor/differing-result-roles]
-    ))
+    ['(if (Ana x) (Bob z) (Bob y)) '^{:role nil} (if x z y)]
+    ['(Ana (if x (Bob z) (Bob y))) '^Ana (if x z y)]
+    ;; ['(if (Ana x) (Bob z) (Cal y)) :klor/differing-result-roles]))
 
 (deftest role-analyze-select
   (role-analyzes []
@@ -247,15 +246,15 @@
 
   (role-analyzes '[Ana]
     ['(select (Ana x)) '(select ^Ana x)]
-    ['(select (Ana x)) '^Ana (select x)]
+    ['(select (Ana x)) '^{:role nil} (select x)]
     ['(Ana (select x)) '(select ^Ana x)]
     ['(select (Bob x)) '(select (Bob x))])
 
   (role-analyzes '[Ana Bob]
     ['(select (Ana x) (Bob y)) '(select ^Ana x ^Bob y)]
     ['(Ana (select x (Bob y))) '(select ^Ana x ^Bob y)]
-    ['(select (Ana x) (Bob y)) '^Bob (select x y)]
-    ['(Ana (select (Bob x)))   '^Bob (select x)]))
+    ['(select (Ana x) (Bob y)) '^{:role nil} (select x y)]
+    ['(Ana (select (Bob x)))   '^Ana (select x)]))
 
 (deftest role-analyze-sample-1
   (let [sample '(let [(Ana x) (Ana y)]
@@ -267,10 +266,10 @@
                  (let [^Bob y ^Cal b]
                    (let [^Cal z ^Dan c]
                      ^Dan w)))]
-      [sample '^Dan (let [x y]
-                      ^Dan (let [y b]
-                             ^Dan (let [z c]
-                                    w)))])))
+      [sample '^{:role nil} (let [x y]
+                              ^{:role nil} (let [y b]
+                                             ^{:role nil} (let [z c]
+                                                            w)))])))
 
 (deftest role-analyze-sample-2
   (let [sample '(let [(Ana x) (Ana y)]
@@ -282,7 +281,7 @@
                  (let [^Bob y ^Cal b]
                    (let [^Cal z ^Dan c]
                      (do ^Dan a ^Dan b ^Ana w))))]
-      [sample '^Ana (let [x y]
-                      ^Ana (let [y b]
-                             ^Ana (let [z c]
-                                    (do a b w))))])))
+      [sample '^{:role nil} (let [x y]
+                              ^{:role nil} (let [y b]
+                                             ^{:role nil} (let [z c]
+                                                            (do a b w))))])))
