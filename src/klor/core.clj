@@ -44,7 +44,7 @@
 ;;; forms, i.e. `Role/x` into `(Role x)`. The expansion can be performed in
 ;;; positions that are not evaluated, e.g. `let` binders.
 
-(defn role-expand-form-dispatch [ctx form]
+(defn form-dispatch [ctx form]
   (cond
     ;; Non-list compound form
     (vector? form) :vector
@@ -57,7 +57,7 @@
     ;; Atom
     :else :atom))
 
-(defmulti role-expand-form #'role-expand-form-dispatch)
+(defmulti role-expand-form #'form-dispatch)
 
 (defmethod role-expand-form :default [ctx form]
   ;; Invoked for any non-special operator OP.
@@ -132,20 +132,7 @@
 ;;;
 ;;; - `(Role x ...)` is transformed into `(do x ...)`.
 
-(defn role-analyze-form-dispatch [ctx form]
-  (cond
-    ;; Non-list compound form
-    (vector? form) :vector
-    (map? form) :map
-    (set? form) :set
-    ;; Role form
-    (and (seq? form) (contains? (:roles ctx) (first form))) :role
-    ;; Other list compound form
-    (seq? form) (first form)
-    ;; Atom
-    :else :atom))
-
-(defmulti role-analyze-form #'role-analyze-form-dispatch)
+(defmulti role-analyze-form #'form-dispatch)
 
 (defn role-union [& forms]
   (apply union (map #(:roles (meta %)) forms)))
