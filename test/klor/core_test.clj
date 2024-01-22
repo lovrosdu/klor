@@ -5,16 +5,20 @@
             [klor.core :refer [metaify unmetaify role-expand role-analyze]]))
 
 ;;; Printing
+;;;
+;;; We use a custom pprint dispatch function during testing in order to hide
+;;; printing of any `MetaBox`es in test reports as it just adds noise. By
+;;; default, pprint prints `MetaBox` as any other `IDeref`: `#<...>`.
 
-(defn pprint-metabox-dispatch []
+(defn make-pprint-metabox-dispatch []
   (let [prev pp/*print-pprint-dispatch*]
-    (fn [x]
-      (pp/with-pprint-dispatch prev
-        (when (instance? metabox.MetaBox x)
-          (#'pp/pprint-meta x))
-        (pp/pprint (unmetaify x))))))
+    (fn rec [x]
+      (if (instance? metabox.MetaBox x)
+        (do (#'pp/pprint-meta x)
+            (rec (unmetaify x)))
+        (prev x)))))
 
-(t/use-fixtures :once #(pp/with-pprint-dispatch (pprint-metabox-dispatch)
+(t/use-fixtures :once #(pp/with-pprint-dispatch (make-pprint-metabox-dispatch)
                          (binding [*print-meta* true]
                            (%))))
 
@@ -159,11 +163,10 @@
   `(let [expected# (role-from-tag ~expected)
          actual# ~actual
          result# (roled= expected# actual#)]
-     (binding [*print-meta* true]
-       (t/do-report {:type (if result# :pass :fail)
-                     :message ~msg
-                     :expected (role-meta-only expected#)
-                     :actual (role-meta-only actual#)}))
+     (t/do-report {:type (if result# :pass :fail)
+                   :message ~msg
+                   :expected (role-meta-only expected#)
+                   :actual (role-meta-only actual#)})
      result#))
 
 (defmacro role-analyzes
