@@ -1,8 +1,8 @@
 (ns klor.core-test
   (:require [clojure.pprint :as pp]
             [clojure.set :refer [union]]
-            [clojure.test :refer :all]
-            [klor.core :refer :all]))
+            [clojure.test :refer [deftest is] :as t]
+            [klor.core :refer [metaify unmetaify role-expand role-analyze]]))
 
 ;;; Printing
 
@@ -14,9 +14,9 @@
           (#'pp/pprint-meta x))
         (pp/pprint (unmetaify x))))))
 
-(use-fixtures :once #(pp/with-pprint-dispatch (pprint-metabox-dispatch)
-                       (binding [*print-meta* true]
-                         (%))))
+(t/use-fixtures :once #(pp/with-pprint-dispatch (pprint-metabox-dispatch)
+                         (binding [*print-meta* true]
+                           (%))))
 
 ;;; Role Expansion
 
@@ -149,17 +149,22 @@
       ;; NOTE: Coerce an empty map returned by `select-keys` to nil. Unlike nil,
       ;; empty maps are printed when printing metadata.
       (if (seq m) m nil)
+      ;; NOTE: Override `x`'s metadata completely.
       (with-meta (metaify x) m))))
 
-(defmethod assert-expr 'role-analyze= [msg [_ expected actual]]
+;;; We use `assert-expr` to register a custom `is` predicate called
+;;; `role-analyze=` for nicer test reports.
+
+(defmethod t/assert-expr 'role-analyze= [msg [_ expected actual]]
   `(let [expected# (role-from-tag ~expected)
          actual# ~actual
          result# (roled= expected# actual#)]
      (binding [*print-meta* true]
-       (do-report {:type (if result# :pass :fail) :message ~msg
-                   :expected (role-meta-only expected#)
-                   :actual (role-meta-only actual#)}))
-    result#))
+       (t/do-report {:type (if result# :pass :fail)
+                     :message ~msg
+                     :expected (role-meta-only expected#)
+                     :actual (role-meta-only actual#)}))
+     result#))
 
 (defmacro role-analyzes
   {:style/indent 1}
