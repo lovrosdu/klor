@@ -27,10 +27,8 @@
 (defmacro role-expands
   {:style/indent 1}
   [roles & pairs]
-  (let [sym (gensym "roles")]
-    `(let [~sym (set ~roles)]
-       (do ~@(for [[from to] pairs]
-               `(is (= (role-expand ~sym ~from) ~to)))))))
+  `(do ~@(for [[from to] pairs]
+           `(is (= (role-expand ~roles ~from) ~to)))))
 
 (deftest role-expand-symbol
   (role-expands []
@@ -172,10 +170,8 @@
 (defmacro role-analyzes
   {:style/indent 1}
   [roles & pairs]
-  (let [sym (gensym "roles")]
-    `(let [~sym (set ~roles)]
-       (do ~@(for [[from to] pairs]
-               `(is (~'role-analyze= ~to (role-analyze ~sym ~from))))))))
+  `(do ~@(for [[from to] pairs]
+           `(is (~'role-analyze= ~to (role-analyze ~roles ~from))))))
 
 (deftest role-analyze-primitive
   (role-analyzes []

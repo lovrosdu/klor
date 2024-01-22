@@ -103,9 +103,11 @@
   `(~'select ~@(map (partial role-expand-form ctx) body)))
 
 (defn role-expand
-  "Return the result of role expanding FORM in the context of ROLES."
+  "Return the result of role analyzing a form in the context of some roles.
+
+  ROLES should be a set of unqualified symbols naming the roles."
   [roles form]
-  (role-expand-form {:role nil :roles roles} form))
+  (role-expand-form {:role nil :roles (set roles)} form))
 
 ;;; Role Analysis
 ;;;
@@ -208,9 +210,11 @@
                 {:role (:role ctx) :roles (apply role-union body)})))
 
 (defn role-analyze
-  "Return the result of role analyzing FORM in the context of ROLES."
+  "Return the result of role analyzing a form in the context of some roles.
+
+  ROLES should be a set of unqualified symbols naming the roles."
   [roles form]
-  (role-analyze-form {:role nil :roles roles} form))
+  (role-analyze-form {:role nil :roles (set roles)} form))
 
 ;;; Printing
 
