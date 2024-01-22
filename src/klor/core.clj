@@ -209,11 +209,11 @@
 
 (def fg-colors
   ;; Taken from `puget.color.ansi/sgr-code`.
-  [:red :cyan :yellow :magenta :blue :green :white :black])
+  [:cyan :yellow :red :magenta :blue :green :white :black])
 
 (def bg-colors
   ;; Taken from `puget.color.ansi/sgr-code`.
-  [:bg-red :bg-cyan :bg-yellow :bg-magenta
+  [:bg-cyan :bg-yellow :bg-red :bg-magenta
    :bg-blue :bg-green :bg-white :bg-black])
 
 (defn make-color-scheme [color]
@@ -263,16 +263,12 @@
     (apply print-chor-form analyzed colors)))
 
 (defn -main []
-  (role-visualize '#{Ana Bob} '(let [Ana/x Bob/x] (if Ana/x Bob/x Bob/x))
-                  {'Ana :yellow 'Bob :cyan})
+  (role-visualize '#{Ana Bob}
+                  '(let [Ana/x Bob/x] (if Ana/x Bob/x Bob/x)))
   (role-visualize '#{Ana Bob Cal Dan}
                   '(let [(Bob x) (Ana x)]
                      (let [(Cal x) (Bob x)]
                        (let [(Dan x) (Cal x)]
                          (Dan x)))))
-  (role-visualize '#{Ana Bob Cal Dan}
-                  '(let [(Bob x) (Ana x)]
-                     (let [(Cal x) (Bob x)]
-                       (let [(Dan x) (Cal x)]
-                         (Dan x))))
-                  {'Ana :yellow 'Bob :magenta 'Cal :red 'Dan :cyan}))
+  (role-visualize '#{Ana Bob}
+                  '(Ana (print (Bob (+ 1 Ana/x))))))
