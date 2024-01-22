@@ -2,7 +2,8 @@
   (:require [clojure.pprint :as pp]
             [clojure.set :refer [union]]
             [clojure.test :refer [deftest is] :as t]
-            [klor.core :refer [metaify unmetaify role-expand role-analyze]]))
+            [klor.util :refer [metaify unmetaify]]
+            [klor.roles :refer [role-expand role-analyze]]))
 
 ;;; Printing
 ;;;
