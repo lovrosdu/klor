@@ -205,7 +205,7 @@
 (defmethod role-analyze-form 'select [ctx [_ & body]]
   (let [body (map (partial role-analyze-form ctx) body)]
     (merge-meta `(~'select ~@body)
-                {:role ctx :roles (apply role-union body)})))
+                {:role (:role ctx) :roles (apply role-union body)})))
 
 (defn role-analyze
   "Return the result of role analyzing FORM in the context of ROLES."
