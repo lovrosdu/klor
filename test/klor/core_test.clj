@@ -73,13 +73,13 @@
 
 (deftest role-expand-select
   (role-expands []
-    ['(select x y)         '(select x y)]
-    ['(select Ana/x Ana/y) '(select Ana/x Ana/y)])
+    ['(select [x] y)         '(select [x] y)]
+    ['(select [Ana/x] Ana/y) '(select [Ana/x] Ana/y)])
 
   (role-expands '[Ana]
-    ['(select x y)         '(select x y)]
-    ['(select Ana/x Ana/y) '(select (Ana x) (Ana y))]
-    ['(select Bob/x Bob/y) '(select Bob/x Bob/y)]))
+    ['(select [x] y)         '(select [x] y)]
+    ['(select [Ana/x] Ana/y) '(select [(Ana x)] (Ana y))]
+    ['(select [Bob/x] Bob/y) '(select [Bob/x] Bob/y)]))
 
 ;;; Role Analysis
 
@@ -246,16 +246,16 @@
     ['(select (Ana x)) '(select (Ana x))])
 
   (role-analyzes '[Ana]
-    ['(select (Ana x)) '(select ^Ana x)]
-    ['(select (Ana x)) '^{:role nil} (select x)]
-    ['(Ana (select x)) '(select ^Ana x)]
-    ['(select (Bob x)) '(select (Bob x))])
+    ['(select [(Ana x)]) '(select [^Ana x])]
+    ['(select [(Ana x)]) '^{:role nil} (select [x])]
+    ['(Ana (select [x])) '(select [^Ana x])]
+    ['(select [(Bob x)]) '(select [(Bob x)])])
 
   (role-analyzes '[Ana Bob]
-    ['(select (Ana x) (Bob y)) '(select ^Ana x ^Bob y)]
-    ['(Ana (select x (Bob y))) '(select ^Ana x ^Bob y)]
-    ['(select (Ana x) (Bob y)) '^{:role nil} (select x y)]
-    ['(Ana (select (Bob x)))   '^Ana (select x)]))
+    ['(select [(Ana x)] (Bob y)) '(select [^Ana x] ^Bob y)]
+    ['(Ana (select [x] (Bob y))) '(select [^Ana x] ^Bob y)]
+    ['(select [(Ana x)] (Bob y)) '^{:role nil} (select [x] y)]
+    ['(Ana (select [(Bob x)]))   '^Ana (select [x])]))
 
 (deftest role-analyze-sample-1
   (let [sample '(let [(Ana x) (Ana y)]

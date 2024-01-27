@@ -80,15 +80,15 @@ Schematically, the following is an overview of the syntax of a choreographic exp
 <expr> ::= <basic-expr> | <compound-expr>
 
 <compound-expr>
-  ::= (<role> <expr>*)           ; role expression
-    | (<op> <expr>*)             ; function operator
-    | (do <expr>*)               ; special operator
-    | (let [<binding>*] <expr>*) ; special operator
-    | (if <cond> <then> <else>?) ; special operator
-    | (select <label> <expr>*)   ; special operator
-    | [<expr>*]                  ; vector
-    | {<pair>*}                  ; map
-    | #{<expr>*}                 ; set
+  ::= (<role> <expr>*)                   ; role expression
+    | (<op> <expr>*)                     ; function operator
+    | (do <expr>*)                       ; special operator
+    | (let [<binding>*] <expr>*)         ; special operator
+    | (if <cond> <then> <else>?)         ; special operator
+    | (select [<label> <role>+] <expr>*) ; special operator
+    | [<expr>*]                          ; vector
+    | {<pair>*}                          ; map
+    | #{<expr>*}                         ; set
 
 <pair> ::= <expr> <expr>
 
@@ -170,9 +170,10 @@ The special operators of Klor are:
   The active role is propagated to `<cond>`, `<then>` and `<else>`.
   The result of either `<then>` or `<else>`, if any, is communicated only if its location is different from the location of the whole Klor expression.
 
-- `(select <label> <expr>*)`
+- `(select [<label> <role>+] <body-expr>*)`
 
   `select` is a Klor-specific special operator that is relevant for the purposes of projection, but otherwise behaves just like `do`.
+  The active role is propagated to `<label>` and `<body-expr>`.
 
 ### Non-list Compound Expressions
 
@@ -245,15 +246,14 @@ Before we show the choreography in Klor, assume we model the problem using the f
 Putting it all together, we might end up with the following:
 
 ```clojure
-
 (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
   (let [Seller/title (Buyer (:title order))
         Buyer/price (Seller (price-of title catalogue))]
     (if (Buyer (>= (:budget order) price))
-      (select Buyer/ok
-        (let [Seller/address (Buyer (:address order))
+      (select [ok Seller]
+        (let [Seller/address (:address order)
               Seller/date (Seller (ship! address))]
-          (Buyer (println "I'll get the book on" Seller/date))))
-      (select Buyer/ko
+          (println "I'll get the book on" Seller/date)))
+      (select [ko Seller]
         (Seller (println "Buyer changed his mind"))))))
 ```

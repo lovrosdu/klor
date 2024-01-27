@@ -76,8 +76,9 @@
     ~(role-expand-form ctx then)
     ~(role-expand-form ctx else)))
 
-(defmethod role-expand-form 'select [ctx [_ & body]]
-  `(~'select ~@(map (partial role-expand-form ctx) body)))
+(defmethod role-expand-form 'select [ctx [_ [label & roles] & body]]
+  `(~'select [~(role-expand-form ctx label) ~@roles]
+    ~@(map (partial role-expand-form ctx) body)))
 
 (defn role-expand
   "Return the result of role analyzing a form in the context of some roles.
@@ -168,10 +169,12 @@
     (merge-meta `(~'if ~cond ~then ~else)
                 {:role (:role ctx) :roles (role-union cond then else)})))
 
-(defmethod role-analyze-form 'select [ctx [_ & body]]
-  (let [body (map (partial role-analyze-form ctx) body)]
-    (merge-meta `(~'select ~@body)
-                {:role (:role ctx) :roles (apply role-union body)})))
+(defmethod role-analyze-form 'select [ctx [_ [label & roles] & body]]
+  (let [label (role-analyze-form ctx label)
+        body (map (partial role-analyze-form ctx) body)]
+    (merge-meta `(~'select [~label ~@roles] ~@body)
+                {:role (:role ctx)
+                 :roles (union (apply role-union label body) (set roles))})))
 
 (defn role-analyze
   "Return the result of role analyzing a form in the context of some roles.
