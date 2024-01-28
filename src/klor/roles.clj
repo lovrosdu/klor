@@ -3,17 +3,21 @@
             [klor.util :refer [merge-meta metaify]]))
 
 (defn role-qualified-symbol
-  "Return a vector if SYM is a role-qualified symbol. Otherwise, return nil.
+  "Return a vector if SYM is a role-qualified symbol (or keyword). Otherwise,
+  return nil.
 
-  SYM is role-qualified if its namespace is any of the symbols in the set ROLES.
+  SYM is role-qualified if its namespace part matches any of the symbols in the
+  set ROLES.
 
-  The returned vector is of the form `[ns name]`, where `ns` and `name` are
-  unqualified symbols whose names are the namespace and the name of SYM,
-  respectively."
+  The returned vector is of the form `[ns name]`, where `ns` is an unqualified
+  symbol naming the namespace of SYM and `name` is an unqualified symbol (or
+  keyword) naming SYM."
   [roles sym]
-  (and (symbol? sym)
+  (and (or (symbol? sym) (keyword? sym))
        (let [ns (some-> sym namespace symbol)]
-         (or (and (contains? roles ns) [ns (symbol (name sym))]) nil))))
+         (or (and (contains? roles ns)
+                  [ns ((if (symbol? sym) symbol keyword) (name sym))])
+             nil))))
 
 ;;; Role Expansion
 ;;;
