@@ -64,14 +64,14 @@
 (defmethod role-expand-form 'do [ctx [_ & body]]
   `(~'do ~@(map (partial role-expand-form ctx) body)))
 
-(defn role-expand-form-let-binding [ctx [binder form :as binding]]
+(defn role-expand-let-binding [ctx [binder form :as binding]]
   (let [form (role-expand-form ctx form)]
     (if-let [[ns name] (role-qualified-symbol (:roles ctx) binder)]
       `[(~ns ~name) ~form]
       `[~binder ~form])))
 
 (defmethod role-expand-form 'let [ctx [_ bindings & body]]
-  `(~'let [~@(mapcat (partial role-expand-form-let-binding ctx)
+  `(~'let [~@(mapcat (partial role-expand-let-binding ctx)
                      (partition 2 bindings))]
     ~@(map (partial role-expand-form ctx) body)))
 
@@ -85,9 +85,9 @@
     ~@(map (partial role-expand-form ctx) body)))
 
 (defn role-expand
-  "Return the result of role analyzing a form in the context of some roles.
+  "Expand all role-qualified symbols in FORM into their role form equivalents.
 
-  ROLES should be a set of unqualified symbols naming the roles."
+  ROLES is a set of unqualified symbols that name the recognized roles."
   [roles form]
   (role-expand-form {:role nil :roles (set roles)} form))
 
@@ -95,18 +95,18 @@
 ;;;
 ;;; Role analysis determines for each expression:
 ;;;
-;;; (1) The "involved roles": the roles that are involved in the evaluation of
+;;; (1) The "owning role": the role that holds the value that is the result of
 ;;;     the expression.
 ;;;
-;;; (2) The "result role": the role that holds the value that is the result of
+;;; (2) The "involved roles": the roles that are involved in the evaluation of
 ;;;     the expression.
 ;;;
-;;; If an expression has no involved roles and no result role, then it
+;;; If an expression has no owning role and no involved roles, then it
 ;;; is "unlocated", which might be an error depending on the expression.
 ;;;
 ;;; (1) and (2) are stored as metadata attached to each expression, under the
-;;; keys `:roles` (a set of unqualified symbols) and `:role` (an unqualified
-;;; symbol).
+;;; keys `:role` (an unqualified symbol) and `:roles` (a set of unqualified
+;;; symbols).
 ;;;
 ;;; Furthermore, role analysis transforms role forms:
 ;;;
@@ -157,12 +157,12 @@
     (merge-meta `(~'do ~@body)
                 {:role (:role ctx) :roles (apply role-union body)})))
 
-(defn role-analyze-form-let-binding [ctx binding]
-  (mapv (partial role-analyze-form ctx) binding))
+(defn role-analyze-let-binding [ctx binding]
+  (map (partial role-analyze-form ctx) binding))
 
 (defmethod role-analyze-form 'let [ctx [_ bindings & body]]
   (let [body (map (partial role-analyze-form ctx) body)
-        bindings (mapcat (partial role-analyze-form-let-binding ctx)
+        bindings (mapcat (partial role-analyze-let-binding ctx)
                          (partition 2 bindings))]
     (merge-meta `(~'let [~@bindings] ~@body)
                 {:role (:role ctx)
@@ -181,8 +181,12 @@
                  :roles (union (apply role-union label body) (set roles))})))
 
 (defn role-analyze
-  "Return the result of role analyzing a form in the context of some roles.
+  "Analyze and annotate FORM and its subforms with metadata describing its owning
+  role and the involved roles.
 
-  ROLES should be a set of unqualified symbols naming the roles."
+  Role forms are removed and replaced with `do` forms if the role form has more
+  than one subform or if it is a direct subform of another role form.
+
+  ROLES is a set of unqualified symbols that name the recognized roles."
   [roles form]
   (role-analyze-form {:role nil :roles (set roles)} form))

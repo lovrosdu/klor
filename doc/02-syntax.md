@@ -26,7 +26,7 @@ A role expression is of the form
 ```
 
 and denotes that each `<expr>` is located at `<role>`.
-Role expressions can be nested arbitrarily, but a Klor expression is only located at the role specified by the innermost enclosing role annotation, which we call the **active role** for that Klor expression.
+Role expressions can be nested arbitrarily, but a Klor expression is only located at the role specified by the innermost enclosing role annotation, which we call the **active role** for that expression.
 This works in a manner similar to lexical scope, with the active role propagating to all appropriate subexpressions of `<expr>` (just like a lexical binding's scope propagates to all subexpressions, unless shadowed).
 For example, in the Klor expression `(Ana x (Bob y (Cal z)))`:
 
@@ -111,7 +111,7 @@ An invocation of a function operator `<op>` is of the form
 ```
 
 The active role is propagated to `<op>` and each `<expr>`.
-`<op>` is not allowed to be located at a role different from the role of the whole Klor expression.
+`<op>` is not allowed to be located at a role different from the role of the whole expression.
 
 All function invocations use a single general communication rule.
 If `(<op> <expr>*)` is located at role `<role-2>` and any argument `<expr>` is located at a different role `<role-1>`, then `<role-1>` will have to communicate the result of `<expr>` to `<role-2>` before `<role-2>` can carry out the remainder of the computation, which is the invocation of `<op>` itself.
@@ -139,9 +139,9 @@ The special operators of Klor are:
 - `(do <expr>*)`
 
   The active role is propagated to each `<expr>`.
-  Only the result of the last `<expr>`, if any, is communicated, if the location of `<expr>` is different from the location of the whole Klor expression.
+  Only the result of the last `<expr>`, if any, is communicated, if the location of `<expr>` is different from the location of the whole expression.
 
-  For convenience purposes, role expressions are treated as implicit `do` blocks, which is the reason why they can enclose more than one expression: `(<role> <expr>*)`
+  For convenience purposes, role expressions are treated as implicit `do` blocks when they appear in evaluated contexts, which is the reason why they can enclose more than one expression: `(<role> <expr>*)`
   Like role-qualified symbols, this makes Klor code more readable and reduces the level of nesting:
 
   ```clojure
@@ -157,7 +157,7 @@ The special operators of Klor are:
   Each `<binding>` is of the form `<binder> <init-expr>`.
   A `<binder>` is anything that is accepted by Clojure's own `let` -- a plain symbol or a sequential or associative destructuring pattern.
 
-  The active role is propagated to each `<binder>`, `<init-expr>` and `<body-expr>`.
+  The active role is propagated to each of `<binder>`, `<init-expr>` and `<body-expr>`.
   Role expressions are allowed within `<binder>`, but it is forbidden for parts of a binder to be located at different roles.
   Therefore, it is only ever useful for `<binder>` to contain a single top-level role expression, if any.
   Role-qualified symbols come in handy as binders.
@@ -168,7 +168,7 @@ The special operators of Klor are:
 - `(if <cond> <then> <else>?)`
 
   The active role is propagated to `<cond>`, `<then>` and `<else>`.
-  The result of either `<then>` or `<else>`, if any, is communicated only if its location is different from the location of the whole Klor expression.
+  The result of either `<then>` or `<else>`, if any, is communicated only if its location is different from the location of the whole expression.
 
 - `(select [<label> <role>+] <body-expr>*)`
 
@@ -178,10 +178,10 @@ The special operators of Klor are:
 ### Non-list Compound Expressions
 
 Non-list compound expressions are vectors, maps and sets: `[<expr>*]`, `{<pair>*}` and `#{<expr>*}` (where `<pair>` is `<expr> <expr>`).
-Like in Clojure, they are effectively shorthands for creating a collection of elements given by the results of all `<expr>`s, but the same could be achieved by standard Clojure functions such as `vector`, `hash-map` and `hash-set`.
+Like in Clojure, they are effectively shorthands for creating a collection of elements given by the results of all `<expr>`s, but the same could be achieved with standard Clojure functions such as `vector`, `hash-map` and `hash-set`.
 
 Non-list compound expressions behave essentially the same as function calls when it comes to communications.
-Any `<expr>` whose location differs from the location of the whole Klor expression is communicated before the collection can be assembled at the destination:
+Any `<expr>` whose location differs from the location of the whole expression is communicated before the collection can be assembled at the destination:
 
 ```clojure
 ;; No communications are done.
