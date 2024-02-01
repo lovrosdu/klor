@@ -1,143 +1,127 @@
-(ns klor.scratch)
+(ns klor.scratch
+  (:require [klor.macros :refer [defchor select]]
+            [klor.roles :refer [role-expand role-analyze roles-of]]
+            [klor.projection :refer [project]]
+            [klor.util :refer [warn]]))
 
-(defmacro defchor [name roles params & body]
-  nil)
+;;; Debug
 
-(defn com [& args]
-  nil)
+(def ^:dynamic *dbg* [])
 
-(defmacro comlet
-  {:style/indent 1}
-  [vars & body]
-  nil)
+(defn dbg [x]
+  (alter-var-root #'*dbg* conj x)
+  x)
 
-(defmacro select
-  {:style/indent 1}
-  [label & body]
-  nil)
+;;; Projection
+
+(def ^:dynamic *roles*
+  '[Ana Bob Cal Dan Eli])
+
+(defn doit1 [form role]
+  (try
+    (project role form)
+    (catch Exception e
+      (warn ["Unmergeable at " role])
+      ['unmergable (ex-message e)])))
+
+(defn doit [form & roles]
+  (let [roles (if (seq roles) roles *roles*)
+        form (role-analyze roles (role-expand roles form))]
+    (into {} (map #(vector % (doit1 form %)) (roles-of form)))))
+
+;;; Functions
+
+(doit '(Ana (+ (Bob 1) (Cal (- (Ana 5) (Bob 3))))))
+
+;;; Let
+
+(doit '(let [Ana/x Bob/x
+             Cal/x (Bob (Ana 123))
+             Eli/y (Eli 123)]
+         (Ana 666)
+         (Bob 123)
+         (Cal z)
+         (Dan 3)
+         (Ana x)))
+
+;;; Select
+
+(doit '(Cal (select [Ana/ok Bob Cal] (Bob 123))))
+
+;;; Conditionals
+
+;;; Normal conditional at Ana
+
+(doit '(Ana (if cond
+              (select [ok Bob Cal] (do Bob/x nil))
+              (select [ko Bob Cal] (do Cal/y nil)))))
+
+;;; Conditional at Ana, with help from Bob
+
+(doit '(Ana (if Bob/cond
+              (select [ok Bob Cal] (do Bob/x nil))
+              (select [ko Bob Cal] (do Cal/y nil)))))
+
+;;; Conditional at Ana, but selections from Dan (unmergeable at Dan)
+
+(doit '(Ana (if cond
+              (select [Dan/ok Bob Cal] (do Bob/x nil))
+              (select [Dan/ko Bob Cal] (do Cal/y nil)))))
+
+;;; Nested conditionals at Ana
+
+(doit '(Ana (if cond1
+              (select [a Bob Cal] Bob/x)
+              (if cond2
+                (select [b Bob Cal] Cal/y)
+                (select [c Bob Cal] Cal/z)))))
+
+;;; Nested conditionals at Ana, with help from Bob (unmergeable at Bob)
+
+(doit '(Ana (if Bob/cond1
+              (select [a Bob Cal] Bob/x)
+              (if Bob/cond2
+                (select [b Bob Cal] Cal/y)
+                (select [c Bob Cal] Cal/z)))))
+
+;;; Nested conditionals at Ana via `cond`
+
+(doit `(~'Ana ~(clojure.walk/macroexpand-all
+                '(cond
+                   cond1 (select [a Bob Cal] (Bob x))
+                   cond2 (select [b Bob Cal] (Cal y))
+                   :else (select [c Bob Cal] (Bob x) (Cal y))))))
+
+;;; Optional else branch
+
+(doit '(Ana (if cond 123)))
+
+;;; Optional else branch, with Bob involved (unmergeable at Bob)
+
+(doit '(Ana (if cond (select [ok Bob] (Bob 123)))))
 
 (comment
-  ;; `comlet` for communication (plus some role inference). We abuse the parser
-  ;; and vectors for role suffixes, because [x@y] is parsed as [x @y], but x@y
-  ;; is a syntax error when outside of a vector.
-  (defchor buy-book [Buyer Seller] [order@Buyer catalogue@Seller]
-    (comlet [title@Seller (:title order)]
-      (comlet [price@Buyer (price-of title catalogue)]
-        (if [Buyer (>= (:budget order) price)]
-          (select [Seller ok@Buyer]
-            (comlet [address@Seller (:address order)]
-              (comlet [date@Buyer (ship! address catalogue)]
-                (println "I'll get the book on" date))))
-          (select [Seller ok@Buyer]
-            (println "Buyer changed his mind"))))))
-
-  ;; `com` as a communication function.
-  (defchor buy-book [Buyer Seller] [order@Buyer catalogue@Seller]
-    (if (>= (:budget order)
-            (com Buyer (price-of (com Seller (:title order)) catalogue)))
-      (select [Seller Buyer/ok]
-        (->> (:address order)
-             (com Seller)
-             ship!
-             (com Buyer)
-             (println "I'll get the book on %s")))
-      (select [Seller ko@Buyer]
-        (println "Buyer changed his mind"@Seller))))
-
-  ;; Roles as communication functions (plus some role inference). Namespaces as
-  ;; role prefixes.
-  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
-    (if (>= (:budget order)
-            (Buyer (price-of (Seller (:title order)) catalogue)))
-      (select [Seller Buyer/ok]
-        (->> (:address order)
-             Seller
-             ship!
-             Buyer
-             (println "I'll get the book on %s")))
-      (select [Seller Buyer/ko]
-        (println "Buyer changed his mind"@Seller))))
-
-  ;; Roles as "blocks"/"local contexts" (multitier-like, but expression- instead
-  ;; of statement-oriented). Selections are automatically sent to the union of
-  ;; the roles involved in the branches.
-  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
-    (Buyer
-     (if (>= (:budget order)
-             (Seller (price-of (Buyer (:title order)) catalogue)))
-       (select ok
-         (as-> (Buyer (:address order)) v
-           (Seller (ship! v))
-           (println "I'll get the book on" v)))
-       (select ko
-         (Seller (println "Buyer changed his mind"))))))
-
-  ;; Single-branch `if` and operators like `when`, etc. should automatically add
-  ;; a selection in the else branch. It should use some default label, or maybe
-  ;; even a freshly-generated one.
-  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
-    (Buyer
-     (when (>= (:budget order)
-               (Seller (price-of (Buyer (:title order)) catalogue)))
-       (select ok
-         (as-> (Buyer (:address order)) v
-           (Seller (ship! v))
-           (println "I'll get the book on" v))))))
-
-  ;; A `let`'s bindings, initialization forms and body are by default at the
-  ;; currently active context.
-  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
-    (Seller
-     (let [title (Buyer (:title order))]
-       (Buyer
-        (let [price (Seller (price-of title))]
-          (when (>= (:budget order) price)
-            (select ok
-              (Seller
-               (let [address (Buyer (:address order))]
-                 (as-> (Buyer (:address order)) v
-                   (Seller (ship! v))
-                   (println "I'll get the book on" v)))))))))))
-
-  ;; A multi-role/choreographic `let` can make use of role-prefixed variables as
-  ;; syntax sugar for the explicit context switches.
-  ;;
-  ;; If there's no active context, then (1) non-role-prefixed variables probably
-  ;; shouldn't be allowed, and (2) contexts must be opened explicitly at each of
-  ;; the 3 mentioned points.
-  ;;
-  ;; All variables are context-specific, i.e. `(Seller x)` and `(Buyer x)` are
-  ;; expressions referring to 2 different `x`s. Implicit variable capture is
-  ;; therefore not allowed and context transitions are directly visible.
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
     (let [Seller/title (Buyer (:title order))
-          Buyer/price (Seller (price-of title))]
+          Buyer/price (Seller (price-of title catalogue))]
       (Buyer
-       (when (>= (:budget order) price)
-         (select ok
-           (let [Seller/address (:address order)
+       (if (>= (:budget order) price)
+         (select [Buyer/ok Seller]
+           (let [Seller/address (Buyer (:address order))
                  Seller/date (Seller (ship! address))]
-             (println "I'll get the book on" (Seller date))))))))
+             (println "I'll get the book on" Seller/date)))
+         (select [Buyer/ko Seller]
+           (do (Seller (println "Buyer changed his mind"))
+               nil))))))
 
-  ;; More generally, an expression such as `r/x` could just be a syntactical
-  ;; shorthand for `(r x)`.
-  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
-    (let [(Seller title) (Buyer (:title order))
-          (Buyer price) (Seller (price-of title))]
-      (Buyer
-       (when (>= (:budget order) price)
-         (select ok
-           (let [Seller/address (:address order)
-                 Seller/date (Seller (ship! address))]
-             (println "I'll get the book on" Seller/date)))))))
-
-  ;; `let` should be able to destructure its arguments as usual.
-  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
-    (let [(Buyer {:keys [title budget address]}) Buyer/order
-          Buyer/price (Seller (price-of Buyer/title))]
-      (Buyer
-       (when (>= budget price)
-         (select ok
-           (let [Seller/address address
-                 Seller/date (Seller (ship! address))]
-             (println "I'll get the book on" Seller/date))))))))
+  (defchor buy-book [Buyer Seller]
+    [(Buyer {:keys [title budget address]}) Seller/catalogue]
+    (Buyer
+     ;; NOTE: This is why it's important for the condition to be multi-role!
+     (if (>= (:budget order) (Seller (price-of Buyer/title catalogue)))
+       (select [Buyer/ok Seller]
+         (println "I'll get the book on" (Seller (ship! Buyer/address))))
+       (select [Buyer/ko Seller]
+         (do (Seller (println "Buyer changed his mind"))
+             nil)))))
+  )
