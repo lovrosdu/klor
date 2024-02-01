@@ -49,3 +49,38 @@
     (seq? form) (first form)
     ;; Atom
     :else :atom))
+
+;;; The 3 functions below are taken from
+;;; <https://clojure.atlassian.net/browse/CLJ-2568>.
+
+(defn walk
+  "Like `clojure.walk/walk`, except it preserves metadata."
+  [inner outer form]
+  (cond
+    (list? form)
+    (outer (with-meta (apply list (map inner form)) (meta form)))
+
+    (instance? clojure.lang.IMapEntry form)
+    (outer (clojure.lang.MapEntry/create (inner (key form)) (inner (val form))))
+
+    (seq? form)
+    (outer (with-meta (doall (map inner form)) (meta form)))
+
+    (instance? clojure.lang.IRecord form)
+    (outer (reduce (fn [r x] (conj r (inner x))) form form))
+
+    (coll? form)
+    (outer (with-meta (into (empty form) (map inner form)) (meta form)))
+
+    :else
+    (outer form)))
+
+(defn postwalk
+  "Like `clojure.walk/postwalk`, except it preserves metadata."
+  [f form]
+  (walk (partial postwalk f) f form))
+
+(defn prewalk
+  "Like `clojure.walk/prewalk`, except it preserves metadata."
+  [f form]
+  (walk (partial prewalk f) identity (f form)))

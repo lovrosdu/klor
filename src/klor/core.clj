@@ -1,6 +1,6 @@
 (ns klor.core
   (:require [clojure.set :refer [union]]
-            [klor.util :refer [unmetaify]]
+            [klor.util :refer [unmetaify] :as u]
             [klor.roles :refer [role-expand role-analyze ]]
             [puget.printer :as puget]))
 
@@ -38,12 +38,9 @@
    (merge opts {:color-scheme (make-color-scheme (:color colored))})))
 
 (defn color-chor-form [roles form]
-  (let [{:keys [role]} (meta form)]
-    (->Colored (or (roles role) :white)
-               (cond
-                 (vector? form) (mapv (partial color-chor-form roles) form)
-                 (seq? form) (map (partial color-chor-form roles) form)
-                 :else (unmetaify form)))))
+  (u/postwalk #(let [{:keys [role]} (meta %)]
+                 (->Colored (or (roles role) :white) (unmetaify %)))
+              form))
 
 (defn print-chor-form
   "Print a role-analyzed FORM with syntax coloring, using one color for per role.

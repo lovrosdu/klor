@@ -2,7 +2,7 @@
   (:require [clojure.pprint :as pp]
             [clojure.set :refer [union]]
             [clojure.test :refer [deftest is] :as t]
-            [klor.util :refer [metaify unmetaify]]
+            [klor.util :refer [metaify unmetaify] :as u]
             [klor.roles :refer [role-expand role-analyze]]))
 
 ;;; Printing
@@ -140,20 +140,32 @@
          (every? identity (map roled= x y))
          (= (unmetaify x) (unmetaify y)))))
 
-(defn role-meta-only [x]
+(defn dissoc-entries [m & entries]
+  (let [entries (set entries)]
+    (into {} (remove #(contains? entries %) m))))
+
+(defn role-meta-only [x & entries]
   "Return a tree equal in structure to X, except with the metadata of its nodes
   and leaves altered so that only the `:role` and `:roles` keys are present, if
-  any."
-  (let [m (meta x)
-        x (cond (vector? x) (mapv role-meta-only x)
-                (seq? x) (apply list (map role-meta-only x))
-                :else x)]
-    (as-> (select-keys m [:role :roles]) m
-      ;; NOTE: Coerce an empty map returned by `select-keys` to nil. Unlike nil,
-      ;; empty maps are printed when printing metadata.
-      (if (seq m) m nil)
-      ;; NOTE: Override `x`'s metadata completely.
-      (with-meta (metaify x) m))))
+  any.
+
+  For further filtering, ENTRIES is a vector of pairs [K V] and specifies
+  particular key-value combinations that should be removed
+  completely (naturally, K should be one of `:role` or `:roles`)."
+  (as-> (meta x) m
+    (select-keys m [:role :roles])
+    (apply dissoc-entries m entries)
+    ;; NOTE: Coerce an empty map returned by `select-keys` to nil. Unlike nil,
+    ;; empty maps are printed when printing metadata.
+    (if (seq m) m nil)
+    ;; NOTE: Override `x`'s metadata completely.
+    (with-meta (metaify x) m)))
+
+(defn role-meta-expected [x]
+  (u/postwalk #(role-meta-only % [:role :any] [:roles :any]) x))
+
+(defn role-meta-actual [x]
+  (u/postwalk #(role-meta-only % [:role nil] [:roles #{}]) x))
 
 ;;; We use `assert-expr` to register a custom `is` predicate called
 ;;; `role-analyze=` for nicer test reports.
@@ -164,8 +176,8 @@
          result# (roled= expected# actual#)]
      (t/do-report {:type (if result# :pass :fail)
                    :message ~msg
-                   :expected (role-meta-only expected#)
-                   :actual (role-meta-only actual#)})
+                   :expected (role-meta-expected expected#)
+                   :actual (role-meta-actual actual#)})
      result#))
 
 (defmacro role-analyzes
