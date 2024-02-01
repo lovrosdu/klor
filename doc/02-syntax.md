@@ -249,11 +249,13 @@ Putting it all together, we might end up with the following:
 (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
   (let [Seller/title (Buyer (:title order))
         Buyer/price (Seller (price-of title catalogue))]
-    (if (Buyer (>= (:budget order) price))
-      (select [ok Seller]
-        (let [Seller/address (:address order)
-              Seller/date (Seller (ship! address))]
-          (println "I'll get the book on" Seller/date)))
-      (select [ko Seller]
-        (Seller (println "Buyer changed his mind"))))))
+    (Buyer
+     (if (>= (:budget order) price)
+       (select [ok Seller]
+         (let [Seller/address (:address order)
+               Seller/date (Seller (ship! address))]
+           (println "I'll get the book on" Seller/date)))
+       (select [ko Seller]
+         (do (Seller (println "Buyer changed his mind"))
+             nil))))))
 ```

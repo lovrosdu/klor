@@ -1,6 +1,6 @@
 (ns klor.roles
   (:require [clojure.set :refer [union]]
-            [klor.util :refer [merge-meta metaify]]))
+            [klor.util :refer [merge-meta metaify form-dispatch]]))
 
 (defn role-qualified-symbol
   "Return a vector if SYM is a role-qualified symbol (or keyword). Otherwise,
@@ -24,19 +24,6 @@
 ;;; The role expansion process expands role-qualified symbols into explicit role
 ;;; forms, i.e. `Role/x` into `(Role x)`. The expansion can be performed in
 ;;; positions that are not evaluated, e.g. `let` binders.
-
-(defn form-dispatch [ctx form]
-  (cond
-    ;; Non-list compound form
-    (vector? form) :vector
-    (map? form) :map
-    (set? form) :set
-    ;; Role form
-    (and (seq? form) (contains? (:roles ctx) (first form))) :role
-    ;; Other list compound form
-    (seq? form) (first form)
-    ;; Atom
-    :else :atom))
 
 (defmulti role-expand-form #'form-dispatch)
 
@@ -114,10 +101,18 @@
 ;;;
 ;;; - `(Role x ...)` is transformed into `(do x ...)`.
 
-(defmulti role-analyze-form #'form-dispatch)
+(defn role-of [form]
+  (assert (contains? (meta form) :role) "No role metadata")
+  (:role (meta form)))
+
+(defn roles-of [form]
+  (assert (contains? (meta form) :roles) "No role metadata")
+  (:roles (meta form)))
 
 (defn role-union [& forms]
   (apply union (map #(:roles (meta %)) forms)))
+
+(defmulti role-analyze-form #'form-dispatch)
 
 (defmethod role-analyze-form :default [ctx [op & args]]
   ;; Invoked for any non-special operator OP.
@@ -146,7 +141,7 @@
 (defmethod role-analyze-form :role [ctx [role & body]]
   (let [body (map (partial role-analyze-form (assoc ctx :role role)) body)]
     (merge-meta (if (and (= (count body) 1)
-                         (= (:role (meta (first body))) role))
+                         (= (role-of (first body)) role))
                   ;; Simplify the resulting expression if possible.
                   (first body)
                   `(do ~@body))
