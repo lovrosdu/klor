@@ -68,7 +68,7 @@ The programmer retains enough control to arrange when and in what order the comm
 ## Choreographic Expressions
 
 A **choreographic expression** is a Klor expression that involves one or more role, i.e. one that can contain subexpressions located at different roles, which allows for communications between them.
-A choreographic expression is either a **basic expression** or a **compound expression** (a Clojure collection -- list, vector, map or set -- of a certain structure).
+A choreographic expression is either an **atomic expression** or a **compound expression** (a Clojure collection -- list, vector, map or set -- of a certain structure).
 Role expressions mentioned above are just one particular kind of compound expression.
 
 As is customary in Lisps, list compound expressions are treated as applications of operators, which can be **functions** or **special operators**.
@@ -77,7 +77,7 @@ In contrast, **non-list compound expression** (vectors, maps and sets) don't hav
 Schematically, the following is an overview of the syntax of a choreographic expression `<expr>`:
 
 ```clojure
-<expr> ::= <basic-expr> | <compound-expr>
+<expr> ::= <atomic-expr> | <compound-expr>
 
 <compound-expr>
   ::= (<role> <expr>*)                   ; role expression
@@ -98,9 +98,9 @@ Schematically, the following is an overview of the syntax of a choreographic exp
 Below we detail the syntax of each kind of remaining expression and the communications they prescribe.
 All communications follow the same core "inside out" principle as explained previously.
 
-### Basic Expressions
+### Atomic Expressions
 
-A **basic expression** is any Clojure expression that is not a Clojure collection (list, vector, map or set) -- booleans, numbers, characters, strings, symbols, keywords and nil.
+An **atomic expression** (also called an **atom**) is any Clojure expression that is not a Clojure collection (list, vector, map or set) -- booleans, numbers, characters, strings, symbols, keywords and nil.
 
 ### Functions
 
