@@ -245,14 +245,25 @@
 
 (defmethod project-form 'if [ctx [_ cond then else :as form]]
   (check-located form ["Unlocated `if`: " form])
-  (project-maybe ctx form
-                 #(let [[c t e] (project-coms ctx form [cond then else])]
-                    (case (classify-role ctx form)
-                      :me `(if ~c ~t ~e)
-                      :in (let [merged (merge-branches t e)]
-                            (case (classify-role ctx cond)
-                              (:me :in) (emit-do [c merged])
-                              :none merged))))))
+  ;; NOTE: Clojure's `cond` macro unfortunately does not try to optimize its
+  ;; expansion by using the least number of `if`s possible. In particular, the
+  ;; `:else` case expands into an `if` with dead code: `(if :else <then> nil)`.
+  ;; Note that the symbol `:else` is not any more special to `cond` than any
+  ;; other truthy literal. The dead nil branch makes projection fail for a role
+  ;; that requires merging of the two branches, as it doesn't contain an
+  ;; appropriate selection. We detect this case here and implicitly elide the
+  ;; `if`, projecting only `<then>`. We believe this solution is less surprising
+  ;; than having to e.g. override Clojure's `cond`.
+  (if (and (= (unmetaify cond) :else) (nil? (unmetaify else)))
+    (project-form ctx then)
+    (project-maybe ctx form
+                   #(let [[c t e] (project-coms ctx form [cond then else])]
+                      (case (classify-role ctx form)
+                        :me `(if ~c ~t ~e)
+                        :in (let [merged (merge-branches t e)]
+                              (case (classify-role ctx cond)
+                                (:me :in) (emit-do [c merged])
+                                :none merged)))))))
 
 (defmethod project-form 'select [ctx [_ [label & roles] & body :as form]]
   (check-located label ["Unlocated `select` label: " label])
