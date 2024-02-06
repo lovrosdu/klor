@@ -239,8 +239,7 @@ The two roles, `Buyer` and `Seller`, communicate in order for `Buyer` to buy a b
 Before we show the choreography in Klor, assume we model the problem using the following:
 
 - `order` is a map `{:title <string> :budget <number> :address <string>}`,
-- `catalogue` is an opaque value which we can pass to `price-of`,
-- `price-of` is a function that given the title and the catalogue returns the price of the book,
+- `catalogue` is a map `{<string> <number>}` mapping book names to their prices,
 - `ship!` is a side-effectful function that given the address executes the book shipment.
 
 Putting it all together, we might end up with the following:
@@ -248,9 +247,9 @@ Putting it all together, we might end up with the following:
 ```clojure
 (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
   (let [Seller/title (Buyer (:title order))
-        Buyer/price (Seller (price-of title catalogue))]
+        Buyer/price (Seller (get catalogue title :none))]
     (Buyer
-     (if (>= (:budget order) price)
+     (if (and (int? price) (>= (:budget order) price))
        (select [ok Seller]
          (let [Seller/address (:address order)
                Seller/date (Seller (ship! address))]

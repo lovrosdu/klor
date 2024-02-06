@@ -116,12 +116,14 @@
 
 (doit '(Ana (if cond (select [ok Bob] (Bob 123)))))
 
+;;; Buyer--Seller
+
 (comment
   (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
     (let [Seller/title (Buyer (:title order))
-          Buyer/price (Seller (price-of title catalogue))]
+          Buyer/price (Seller (get catalogue title :none))]
       (Buyer
-       (if (>= (:budget order) price)
+       (if (and (int? price) (>= (:budget order) price))
          (select [Buyer/ok Seller]
            (let [Seller/address (Buyer (:address order))
                  Seller/date (Seller (ship! address))]
@@ -130,16 +132,19 @@
            (do (Seller (println "Buyer changed his mind"))
                nil))))))
 
+  ;; XXX: Get rid of MetaBoxes when emitting.
   (defchor buy-book [Buyer Seller]
     [(Buyer {:keys [title budget address]}) Seller/catalogue]
     (Buyer
-     ;; NOTE: This is why it's important for the condition to be multi-role!
-     (if (>= (:budget order) (Seller (price-of Buyer/title catalogue)))
-       (select [Buyer/ok Seller]
-         (println "I'll get the book on" (Seller (ship! Buyer/address))))
-       (select [Buyer/ko Seller]
-         (do (Seller (println "Buyer changed his mind"))
-             nil)))))
+     (let [price (Seller (get catalogue title :none))]
+       (if (and (int? price) (>= (:budget order) price))
+         (select [Buyer/ok Seller]
+           (println "I'll get the book on" (Seller (ship! Buyer/address))))
+         (select [Buyer/ko Seller]
+           (do (Seller (println "Buyer changed his mind"))
+               nil))))))
+  )
+
 ;;; Laziness
 
 (comment
