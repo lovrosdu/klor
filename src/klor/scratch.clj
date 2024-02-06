@@ -1,5 +1,6 @@
 (ns klor.scratch
-  (:require [klor.macros :refer [defchor select]]
+  (:require [clojure.core.async :as a]
+            [klor.macros :refer [defchor select]]
             [klor.roles :refer [role-expand role-analyze roles-of]]
             [klor.projection :refer [project]]
             [klor.util :refer [warn]]))
@@ -32,6 +33,21 @@
 ;;; Functions
 
 (doit '(Ana (+ (Bob 1) (Cal (- (Ana 5) (Bob 3))))))
+
+;;; Do
+
+(doit '(do (Ana (println "hello"))
+           (Bob (println "world"))))
+
+(doit '(Ana (do (Ana (println "hello"))
+                (Bob (println "world")))))
+
+(doit '(Ana (println "hello")
+            (Bob (println "world"))))
+
+(doit '(Ana (println "hello")
+            (Bob (println "world"))
+            nil))
 
 ;;; Let
 
@@ -124,4 +140,65 @@
        (select [Buyer/ko Seller]
          (do (Seller (println "Buyer changed his mind"))
              nil)))))
+;;; Laziness
+
+(comment
+  ;; XXX: This should fail to compile. Under the hood `lazy-seq` uses an `fn`
+  ;; that should be interpreted as a choreography (a multi-role value) because
+  ;; it contains both roles. This choreography cannot be used with local
+  ;; functions or variables but only within "choreographic contexts".
+  ;;
+  ;; There is most likely no way to write a choreographic `lazy-seq` that would
+  ;; return a lazy sequence at the receiver but turn into a loop at the sender.
+  ;; This is because the receive would have to be within the thunk of the lazy
+  ;; sequence, while the send would have to be "outside", within the sender's
+  ;; loop. There's no way to achieve this when the position of the two cannot be
+  ;; controlled independently (since it's projected from a single com).
+  ;;
+  ;; XXX: Additionally, even if `lazy-seq` worked here, it would end up
+  ;; communicating the lazy sequence to Ana with the way this choreography is
+  ;; written.
+  (defchor lazy-chor [Ana Bob] [Ana/n]
+    (Ana (if (zero? n)
+           (select [done Bob]
+             (Bob nil))
+           (select [more Bob]
+             (Bob (lazy-seq (cons Ana/n (lazy-chor (dec n)))))))))
+
+  ;; XXX: Disregarding for a moment that `lazy-seq` cannot be used like this in
+  ;; a choreographic context, this is the sort of hack we have to use when we
+  ;; want to return a result at Bob, but are stuck within a context at Ana (due
+  ;; to the conditional in this case).
+  (defchor lazy-chor [Ana Bob] [Ana/n]
+    (let [Bob/hack (Bob (volatile! nil))]
+      (Ana (if (zero? n)
+             (select [done Bob]
+               (Bob (vreset! hack nil))
+               nil)
+             (select [more Bob]
+               (Bob (vreset! hack (lazy-seq (cons Ana/n (lazy-chor (dec n))))))
+               nil)))
+      (Bob @hack)))
+
+  ;; XXX: An alterantive to the previous implementation with volatile is to
+  ;; locate the conditional at Bob, but this then requires performing a
+  ;; redundant selection for Ana.
+  (defchor lazy-chor [Ana Bob] [Ana/n]
+    (Bob (if (Ana (zero? n))
+           (select [Ana done]
+             nil)
+           (select [Ana more]
+             (lazy-seq (cons Ana/n (lazy-chor (dec n))))))))
+
+  ;; A way to achieve "laziness" is through channels.
+  (defchor lazy-chor [Ana Bob] [Ana/s Bob/c]
+    (Ana (if (seq s)
+           (select [more Bob]
+             (Bob (a/>!! c (Ana (first s))))
+             ;; NOTE: This invocation has to be in a non-com position.
+             (lazy-chor (rest s) c)
+             nil)
+           (select [done Bob]
+             (Bob (a/close! c))
+             nil))))
   )
