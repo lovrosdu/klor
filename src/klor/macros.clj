@@ -1,10 +1,7 @@
 (ns klor.macros
   (:require [klor.roles :refer [role-of roles-of role-expand role-analyze]]
             [klor.projection :refer [check-local project]]
-            [klor.util :refer [error warn]]))
-
-(def ^:dynamic *defchor-role*
-  nil)
+            [klor.util :refer [warn]]))
 
 (defn analyze [roles form]
   (->> form (role-expand roles) (role-analyze roles)))
@@ -17,15 +14,22 @@
 (defn project-params [role params]
   (filterv #(= (role-of %) role) params))
 
+(defn project-name [role name]
+  (symbol (namespace name) (str (clojure.core/name name) "-" role)))
+
+(defn project-chor [role name params form]
+  (let [name (project-name role name)]
+    [`(defn ~name ~(project-params role params)
+        ~(project role form))
+     name]))
+
 (defmacro defchor [name roles params & body]
-  (when (nil? *defchor-role*)
-    (error :klor "`*defchor-role*` hasn't been set" :form &form))
   (let [params (map (partial analyze-param roles) params)
-        form (analyze roles `(~'do ~@body))]
-    (when-not (contains? (roles-of form) *defchor-role*)
-      (warn ["Role " *defchor-role* " does not appear in the body of " name]))
-    `(defn ~name ~(project-params *defchor-role* params)
-       ~(project *defchor-role* form))))
+        form (analyze roles `(~'do ~@body))
+        projs (map #(project-chor % name params form) roles)]
+    `(do
+       ~@(map first projs)
+       (def ~name ~(zipmap (for [r roles] `'~r) (map second projs))))))
 
 (defmacro select
   {:style/indent 1}
