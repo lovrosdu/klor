@@ -71,6 +71,9 @@
   `(~'select [~(role-expand-form ctx label) ~@roles]
     ~@(map (partial role-expand-form ctx) body)))
 
+(defmethod role-expand-form 'dance [ctx [_ name roles & args]]
+  `(~'dance ~name ~roles ~@(map (partial role-expand-form ctx) args)))
+
 (defn role-expand
   "Expand all role-qualified symbols in FORM into their role form equivalents.
 
@@ -174,6 +177,12 @@
     (merge-meta `(~'select [~label ~@roles] ~@body)
                 {:role (:role ctx)
                  :roles (union (apply role-union label body) (set roles))})))
+
+(defmethod role-analyze-form 'dance [ctx [_ name roles & args]]
+  (let [args (map (partial role-analyze-form ctx) args)]
+    (merge-meta `(~'dance ~name ~roles ~@args)
+                {:role (:role ctx)
+                 :roles (union (apply role-union args) (set roles))})))
 
 (defn role-analyze
   "Analyze and annotate FORM and its subforms with metadata describing its owning

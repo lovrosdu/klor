@@ -2,8 +2,10 @@
   (:refer-clojure :exclude [send])
   (:require [clojure.set :as set]
             [klor.roles :refer [role-expand role-analyze role-of roles-of]]
-            [klor.runtime :refer [send recv choose offer]]
-            [klor.util :refer [unmetaify form-dispatch error warn]]))
+            [klor.runtime :refer [send recv choose offer play-role locator
+                                  *state*]]
+            [klor.util :refer [unmetaify form-dispatch error warn
+                               fully-qualify]]))
 
 ;;; Reporting
 
@@ -110,12 +112,11 @@
 
 (defn emit-do [body]
   (let [body (emit-body body)]
-    (if *emit-pretty*
-      (cond
-        (empty? body) (emit-noop)
-        (= (count body) 1) (first body)
-        :else `(~'do ~@body))
-      `(~'do ~@body))))
+    (cond
+      (not *emit-pretty*) `(~'do ~@body)
+      (empty? body) (emit-noop)
+      (= (count body) 1) (first body)
+      :else `(~'do ~@body))))
 
 (defn classify-role [ctx form]
   (cond
@@ -209,14 +210,17 @@
             (:me :in) ['_ (project-as-sender ctx initform (role-of binder))]
             :none [])))
 
+(defn emit-let [bindings body]
+  (cond
+    (not *emit-pretty*) `(~'let [~@bindings] ~@body)
+    (empty? bindings) (emit-do body)
+    :else `(~'let [~@bindings] ~@(emit-body body))))
+
 (defmethod project-form 'let [ctx [_ bindings & body :as form]]
   (project-maybe ctx form
-                 #(let [bindings (mapcat (partial project-let-binding ctx)
-                                         (partition 2 bindings))
-                        body (project-body ctx form body)]
-                    (if (empty? bindings)
-                      (emit-do body)
-                      `(~'let [~@bindings] ~@(emit-body body))))))
+                 #(emit-let (mapcat (partial project-let-binding ctx)
+                                    (partition 2 bindings))
+                            (project-body ctx form body))))
 
 (defn offer? [form]
   (and (seq? form)
@@ -281,8 +285,59 @@
                                       ~label ~(emit-do body))
                                 :none (emit-do body)))))))
 
-(defn project [role form]
+(defn lookup-chor [{:keys [env ns] :as ctx} name]
+  (let [name (fully-qualify ns name)]
+    (or (get env name) (some-> (resolve name) meta :klor/chor))))
+
+(defn project-dance-locators [subs]
+  (into {} (for [[rparam role] subs] [`'~rparam `(locator '~role)])))
+
+(defn project-dance-args [ctx subs params args]
+  (keep (fn [[param arg]]
+          (let [receiver (get subs (role-of param))
+                m {:role receiver :roles (roles-of arg)}]
+            (case (classify-role ctx (with-meta param m))
+              :me [(gensym) (project-as-receiver ctx arg)]
+              :in ['_ (project-as-sender ctx arg receiver)]
+              :none nil)))
+        (map vector params args)))
+
+(defmethod project-form 'dance [ctx [_ name roles & args :as form]]
+  ;; NOTE:
+  ;; - `(:role ctx)` is the role we're projecting for
+  ;; - `(:roles ctx)` are the role parameters currently in scope
+  ;; - `rparams` are the role parameters of `op`
+  ;; - `roles` are the roles instantiating the role parameters of `op`
+  (let [{rparams :roles params :params :as chor} (lookup-chor ctx name)]
+    (when-not chor
+      (projection-error ["Unknown choreography: " name]))
+    (when-not (= (count roles) (count rparams))
+      (projection-error ["Wrong number of roles: " form]))
+    (let [diff (set/difference (set roles) (set (:roles ctx)))]
+      (when (seq diff)
+        (projection-error ["Unknown roles: " diff])))
+    (when-not (apply distinct? roles)
+      (projection-error ["Duplicate roles: " roles]))
+    (when-not (= (count args) (count params))
+      (projection-error ["Wrong number of arguments: " form]))
+    (project-maybe
+     ctx form
+     #(let [subs (zipmap rparams roles)
+            bindings (project-dance-args ctx subs params args)
+            m {:role nil :roles (set roles)}]
+        (case (classify-role ctx (with-meta roles m))
+          :in (emit-let
+               (mapcat identity bindings)
+               [`(play-role
+                  (merge *state*
+                         {:role '~(get (set/map-invert subs) (:role ctx))
+                          :locators ~(project-dance-locators subs)})
+                  ~name ~@(remove #(= % '_) (map first bindings)))])
+          ;; NOTE: All bindings are dummy `_` bindings in this case.
+          :none (emit-do (map second bindings)))))))
+
+(defn project [role form & {:as ctx}]
   "Project FORM into Clojure code for a role.
 
   ROLE is an unqualified symbol naming the role."
-  (emit-do [(project-form {:role role} form)]))
+  (emit-do [(project-form (merge ctx {:role role}) form)]))

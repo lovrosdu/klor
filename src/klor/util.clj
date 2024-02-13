@@ -37,6 +37,9 @@
 
 ;;; Walking
 
+(defn fully-qualify [ns symbol]
+  (clojure.core/symbol (or (namespace symbol) ns) (name symbol)))
+
 (defn form-dispatch [ctx form]
   (cond
     ;; Non-list compound form
