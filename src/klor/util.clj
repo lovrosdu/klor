@@ -84,3 +84,14 @@
   "Like `clojure.walk/prewalk`, except it preserves metadata."
   [f form]
   (walk (partial prewalk f) identity (f form)))
+
+;;; Virtual Threads
+
+(defn virtual-thread-call [f]
+  (let [p (promise)]
+    ;; NOTE: Capture the currently active dynamic bindings.
+    (.. Thread (ofVirtual) (start (bound-fn [] (deliver p (f)))))
+    p))
+
+(defmacro virtual-thread [& body]
+  `(virtual-thread-call (fn [] ~@body)))
