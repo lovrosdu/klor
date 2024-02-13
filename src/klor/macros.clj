@@ -26,10 +26,14 @@
 (defmacro defchor [name roles params & body]
   (let [params (map (partial analyze-param roles) params)
         form (analyze roles `(~'do ~@body))
-        projs (map #(project-chor % name params form) roles)]
+        projs (map #(project-chor % name roles params form) roles)
+        meta {:klor/chor `'{:roles ~roles :params ~params}}]
     `(do
        ~@(map first projs)
-       (def ~name ~(zipmap (for [r roles] `'~r) (map second projs))))))
+       ;; NOTE: Attach the metadata both to the var and the map, for
+       ;; convenience.
+       (def ~(vary-meta name #(merge % meta))
+         ~(with-meta (zipmap (for [r roles] `'~r) (map second projs)) meta)))))
 
 (defmacro select
   {:style/indent 1}

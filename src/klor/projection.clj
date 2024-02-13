@@ -1,6 +1,8 @@
 (ns klor.projection
+  (:refer-clojure :exclude [send])
   (:require [clojure.set :as set]
             [klor.roles :refer [role-expand role-analyze role-of roles-of]]
+            [klor.runtime :refer [send recv choose offer]]
             [klor.util :refer [unmetaify form-dispatch error warn]]))
 
 ;;; Reporting
@@ -84,7 +86,7 @@
        (or (nil? form)
            (and (seq? form)
                 (let [[op & _] form]
-                  (contains? '#{send choose} op))))))
+                  (contains? `#{send choose} op))))))
 
 (defn emit-body [body]
   (let [body-ret (last body)]
@@ -126,14 +128,14 @@
 (defn project-as-receiver [ctx form]
   (case (classify-role ctx form)
     :me (project-form ctx form)
-    :in `(~'do ~(project-form ctx form) (~'recv '~(role-of form)))
-    :none `(~'recv '~(role-of form))))
+    :in `(~'do ~(project-form ctx form) (recv '~(role-of form)))
+    :none `(recv '~(role-of form))))
 
 (defn project-as-sender [ctx form receiver]
   (case (classify-role ctx form)
     ;; NOTE: Only send if we have someone to send to.
     :me (let [p (project-form ctx form)]
-           (if receiver `(~'send '~receiver ~p) p))
+           (if receiver `(send '~receiver ~p) p))
     :in (project-form ctx form)
     :none noop))
 
@@ -219,7 +221,7 @@
 (defn offer? [form]
   (and (seq? form)
        (let [[op & _] form]
-         (= op 'offer))))
+         (= op `offer))))
 
 (defn merge-branches [left right]
   (cond
@@ -238,7 +240,7 @@
         (projection-error ["Cannot merge; overlapping labels: " labels-l
                            " and " labels-r] :left left :right right)
         :else
-        `(~'offer ~sender-l ~@options-l ~@options-r)))
+        `(offer ~sender-l ~@options-l ~@options-r)))
     :else
     (projection-error ["Cannot merge; only noops and offers are supported: "
                        left " and " right] :left left :right right)))
@@ -270,12 +272,12 @@
   (project-maybe ctx form
                  #(let [body (project-body ctx form body)]
                     (case (classify-role ctx label)
-                      :me (let [choices (for [r roles] `(~'choose '~r '~label))]
+                      :me (let [choices (for [r roles] `(choose '~r '~label))]
                             (emit-do (concat choices body)))
                       :none (let [m {:role nil :roles (set roles)}
                                   roles (with-meta roles m)]
                               (case (classify-role ctx roles)
-                                :in `(~'offer ~(role-of label)
+                                :in `(offer ~(role-of label)
                                       ~label ~(emit-do body))
                                 :none (emit-do body)))))))
 
