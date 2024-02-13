@@ -157,13 +157,11 @@
   (concat (map (partial project-form ctx) (butlast body))
           (project-coms ctx form (take-last 1 body))))
 
-(defn project-maybe
-  ([ctx form f]
-   (project-maybe ctx form noop f))
-  ([ctx form default f]
-   (case (classify-role ctx form)
-     :none default
-     (f))))
+(defmacro project-maybe [ctx form & body]
+  {:style/indent 2}
+  `(case (classify-role ~ctx ~form)
+     :none noop
+     (do ~@body)))
 
 (defmethod project-form :default [ctx [op & args :as form]]
   ;; Invoked for any non-special operator OP.
@@ -176,7 +174,7 @@
 
 (defmethod project-form :atom [ctx form]
   (check-located form ["Unlocated atomic form: " form])
-  (project-maybe ctx form #(unmetaify form)))
+  (project-maybe ctx form (unmetaify form)))
 
 (defmethod project-form :vector [ctx form]
   (check-located form ["Unlocated vector: " form])
@@ -198,7 +196,7 @@
   (projection-error ["Role expression found during projection: " form]))
 
 (defmethod project-form 'do [ctx [_ & body :as form]]
-  (project-maybe ctx form #(emit-do (project-body ctx form body))))
+  (project-maybe ctx form (emit-do (project-body ctx form body))))
 
 (defn project-let-binding [ctx [binder initform]]
   (check-located binder ["Unlocated `let` binder: " binder])
@@ -218,9 +216,9 @@
 
 (defmethod project-form 'let [ctx [_ bindings & body :as form]]
   (project-maybe ctx form
-                 #(emit-let (mapcat (partial project-let-binding ctx)
-                                    (partition 2 bindings))
-                            (project-body ctx form body))))
+    (emit-let (mapcat (partial project-let-binding ctx)
+                      (partition 2 bindings))
+              (project-body ctx form body))))
 
 (defn offer? [form]
   (and (seq? form)
@@ -263,27 +261,26 @@
   (if (and (= (unmetaify cond) :else) (nil? (unmetaify else)))
     (project-form ctx then)
     (project-maybe ctx form
-                   #(let [[c t e] (project-coms ctx form [cond then else])]
-                      (case (classify-role ctx form)
-                        :me `(if ~c ~t ~e)
-                        :in (let [merged (merge-branches t e)]
-                              (case (classify-role ctx cond)
-                                (:me :in) (emit-do [c merged])
-                                :none merged)))))))
+      (let [[c t e] (project-coms ctx form [cond then else])]
+        (case (classify-role ctx form)
+          :me `(if ~c ~t ~e)
+          :in (let [merged (merge-branches t e)]
+                (case (classify-role ctx cond)
+                  (:me :in) (emit-do [c merged])
+                  :none merged)))))))
 
 (defmethod project-form 'select [ctx [_ [label & roles] & body :as form]]
   (check-located label ["Unlocated `select` label: " label])
   (project-maybe ctx form
-                 #(let [body (project-body ctx form body)]
-                    (case (classify-role ctx label)
-                      :me (let [choices (for [r roles] `(choose '~r '~label))]
-                            (emit-do (concat choices body)))
-                      :none (let [m {:role nil :roles (set roles)}
-                                  roles (with-meta roles m)]
-                              (case (classify-role ctx roles)
-                                :in `(offer ~(role-of label)
-                                      ~label ~(emit-do body))
-                                :none (emit-do body)))))))
+    (let [body (project-body ctx form body)]
+      (case (classify-role ctx label)
+        :me (let [choices (for [r roles] `(choose '~r '~label))]
+              (emit-do (concat choices body)))
+        :none (let [m {:role nil :roles (set roles)}
+                    roles (with-meta roles m)]
+                (case (classify-role ctx roles)
+                  :in `(offer ~(role-of label) ~label ~(emit-do body))
+                  :none (emit-do body)))))))
 
 (defn lookup-chor [{:keys [env ns] :as ctx} name]
   (let [name (fully-qualify ns name)]
@@ -320,9 +317,8 @@
       (projection-error ["Duplicate roles: " roles]))
     (when-not (= (count args) (count params))
       (projection-error ["Wrong number of arguments: " form]))
-    (project-maybe
-     ctx form
-     #(let [subs (zipmap rparams roles)
+    (project-maybe ctx form
+      (let [subs (zipmap rparams roles)
             bindings (project-dance-args ctx subs params args)
             m {:role nil :roles (set roles)}]
         (case (classify-role ctx (with-meta roles m))
