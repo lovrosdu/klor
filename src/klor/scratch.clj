@@ -1,9 +1,12 @@
 (ns klor.scratch
-  (:require [clojure.core.async :as a]
-            [klor.macros :refer [defchor select]]
+  (:require [klor.macros :refer [defchor select]]
             [klor.roles :refer [role-expand role-analyze roles-of]]
             [klor.projection :refer [project]]
-            [klor.util :refer [warn]]))
+            [klor.runtime :refer [play-role]]
+            [klor.simulator :refer [simulate-chor]]
+            [klor.sockets :refer [with-server with-accept with-client
+                                  wrap-sockets]]
+            [klor.util :refer [warn virtual-thread]]))
 
 ;;; Debug
 
@@ -36,18 +39,19 @@
 
 ;;; Do
 
-(doit '(do (Ana (println "hello"))
-           (Bob (println "world"))))
+(do
+  (doit '(do (Ana (println "hello"))
+             (Bob (println "world"))))
 
-(doit '(Ana (do (Ana (println "hello"))
-                (Bob (println "world")))))
+  (doit '(Ana (do (Ana (println "hello"))
+                  (Bob (println "world")))))
 
-(doit '(Ana (println "hello")
-            (Bob (println "world"))))
+  (doit '(Ana (println "hello")
+              (Bob (println "world"))))
 
-(doit '(Ana (println "hello")
-            (Bob (println "world"))
-            nil))
+  (doit '(Ana (println "hello")
+              (Bob (println "world"))
+              nil)))
 
 ;;; Let
 
@@ -66,73 +70,83 @@
 
 ;;; Conditionals
 
-;;; Normal conditional at Ana
+(do
+  ;; Normal conditional at Ana
+  (doit '(Ana (if cond
+                (select [ok Bob Cal] (do Bob/x nil))
+                (select [ko Bob Cal] (do Cal/y nil)))))
 
-(doit '(Ana (if cond
-              (select [ok Bob Cal] (do Bob/x nil))
-              (select [ko Bob Cal] (do Cal/y nil)))))
+  ;; Conditional at Ana, with help from Bob
+  (doit '(Ana (if Bob/cond
+                (select [ok Bob Cal] (do Bob/x nil))
+                (select [ko Bob Cal] (do Cal/y nil)))))
 
-;;; Conditional at Ana, with help from Bob
+  ;; Conditional at Ana, but selections from Dan (unmergeable at Dan)
+  (doit '(Ana (if cond
+                (select [Dan/ok Bob Cal] (do Bob/x nil))
+                (select [Dan/ko Bob Cal] (do Cal/y nil)))))
 
-(doit '(Ana (if Bob/cond
-              (select [ok Bob Cal] (do Bob/x nil))
-              (select [ko Bob Cal] (do Cal/y nil)))))
+  ;; Nested conditionals at Ana
+  (doit '(Ana (if cond1
+                (select [a Bob Cal] Bob/x)
+                (if cond2
+                  (select [b Bob Cal] Cal/y)
+                  (select [c Bob Cal] Cal/z)))))
 
-;;; Conditional at Ana, but selections from Dan (unmergeable at Dan)
+  ;; Nested conditionals at Ana, with help from Bob (unmergeable at Bob)
+  (doit '(Ana (if Bob/cond1
+                (select [a Bob Cal] Bob/x)
+                (if Bob/cond2
+                  (select [b Bob Cal] Cal/y)
+                  (select [c Bob Cal] Cal/z)))))
 
-(doit '(Ana (if cond
-              (select [Dan/ok Bob Cal] (do Bob/x nil))
-              (select [Dan/ko Bob Cal] (do Cal/y nil)))))
+  ;; Nested conditionals at Ana via `cond`
+  (doit `(~'Ana ~(clojure.walk/macroexpand-all
+                  '(cond
+                     cond1 (select [a Bob Cal] (Bob x))
+                     cond2 (select [b Bob Cal] (Cal y))
+                     :else (select [c Bob Cal] (Bob x) (Cal y))))))
 
-;;; Nested conditionals at Ana
+  ;; Optional else branch
+  (doit '(Ana (if cond 123)))
 
-(doit '(Ana (if cond1
-              (select [a Bob Cal] Bob/x)
-              (if cond2
-                (select [b Bob Cal] Cal/y)
-                (select [c Bob Cal] Cal/z)))))
+  ;; Optional else branch, with Bob involved (unmergeable at Bob)
+  (doit '(Ana (if cond (select [ok Bob] (Bob 123))))))
 
-;;; Nested conditionals at Ana, with help from Bob (unmergeable at Bob)
+;;; Increment
 
-(doit '(Ana (if Bob/cond1
-              (select [a Bob Cal] Bob/x)
-              (if Bob/cond2
-                (select [b Bob Cal] Cal/y)
-                (select [c Bob Cal] Cal/z)))))
+(defchor increment-chor [Ana Bob] [Ana/x]
+  (Ana (Bob (inc Ana/x))))
 
-;;; Nested conditionals at Ana via `cond`
-
-(doit `(~'Ana ~(clojure.walk/macroexpand-all
-                '(cond
-                   cond1 (select [a Bob Cal] (Bob x))
-                   cond2 (select [b Bob Cal] (Cal y))
-                   :else (select [c Bob Cal] (Bob x) (Cal y))))))
-
-;;; Optional else branch
-
-(doit '(Ana (if cond 123)))
-
-;;; Optional else branch, with Bob involved (unmergeable at Bob)
-
-(doit '(Ana (if cond (select [ok Bob] (Bob 123)))))
+@(simulate-chor increment-chor 5)
 
 ;;; Buyer--Seller
 
-(comment
-  (defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
-    (let [Seller/title (Buyer (:title order))
-          Buyer/price (Seller (get catalogue title :none))]
-      (Buyer
-       (if (and (int? price) (>= (:budget order) price))
-         (select [Buyer/ok Seller]
-           (let [Seller/address (Buyer (:address order))
-                 Seller/date (Seller (ship! address))]
-             (println "I'll get the book on" Seller/date)))
-         (select [Buyer/ko Seller]
-           (do (Seller (println "Buyer changed his mind"))
-               nil))))))
+(defn ship! [address]
+  (str (java.time.LocalDate/now)))
 
-  ;; XXX: Get rid of MetaBoxes when emitting.
+(defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
+  (let [Seller/title (Buyer (:title order))
+        Buyer/price (Seller (get catalogue title :none))]
+    (Buyer
+     (if (and (int? price) (>= (:budget order) price))
+       (select [Buyer/ok Seller]
+         (let [Seller/address (Buyer (:address order))
+               Buyer/date (Seller (ship! address))]
+           (println "I'll get the book on" date)
+           date))
+       (select [Buyer/ko Seller]
+         (do (Seller (println "Buyer changed his mind"))
+             nil))))))
+
+(let [order {:title "To Mock A Mockingbird"
+             :budget 50
+             :address "Some Address 123"}
+      catalogue {"To Mock A Mockingbird" 50}]
+  @(simulate-chor buy-book order catalogue))
+
+;; TODO: Get rid of MetaBoxes when emitting.
+(comment
   (defchor buy-book [Buyer Seller]
     [(Buyer {:keys [title budget address]}) Seller/catalogue]
     (Buyer
@@ -142,7 +156,89 @@
            (println "I'll get the book on" (Seller (ship! Buyer/address))))
          (select [Buyer/ko Seller]
            (do (Seller (println "Buyer changed his mind"))
-               nil))))))
+               nil)))))))
+
+;;; Dance
+
+(defchor f [X Y] [X/x Y/y]
+  (X (println x))
+  (Y (println y))
+  (X 123))
+
+(defchor g [A B C] [A/x B/y]
+  (C (println (A (dance f [B A] A/x B/y)))))
+
+@(simulate-chor g 123 456)
+
+;;; Ping-Pong
+
+(defchor ping-pong-1 [A B] [A/n]
+  (A (if (<= n 0)
+       (select [ok B] :done)
+       (select [ko B] (A (dance ping-pong-1 [B A] (dec n)))))))
+
+@(simulate-chor ping-pong-1 5)
+
+(defchor ping-pong-2 [A B] [A/n]
+  (A (if (<= n 0)
+       (select [ok B] :done)
+       (select [ko B] (B (dance ping-pong-2 [B A] (A (dec n))))))))
+
+@(simulate-chor ping-pong-2 5)
+
+;;; Mutual Recursion
+
+(declare ^{:klor/chor {:params [(with-meta 'n {:role 'A})]
+                       :roles '[A B]}}
+         mutrec-2)
+
+(defchor mutrec-1 [A B] [A/n]
+  (A (println 'mutrec-1 n)
+     (if (<= n 0)
+       (select [ok B] :done)
+       (select [ko B] (dance mutrec-2 [A B] (dec n))))))
+
+(defchor mutrec-2 [A B] [A/n]
+  (A (println 'mutrec-2 n)
+     (if (<= n 0)
+       (select [ok B] :done)
+       (select [ko B] (dance mutrec-1 [A B] (dec n))))))
+
+@(simulate-chor mutrec-1 5)
+
+;;; Sockets
+
+(def port 1337)
+
+(defn run-seller [catalogue & {:keys [host port forever log] :or
+                               {host "0.0.0.0" port port
+                                forever false log :dynamic}}]
+  (let [catalogue (or catalogue {"To Mock A Mockingbird" 50})]
+    (with-server [ssc :host host :port port]
+      (loop []
+        (println "Listening on" (str (. ssc (getLocalAddress))))
+        (with-accept [ssc sc]
+          (println "Got client" (str (. sc (getRemoteAddress))))
+          (play-role (wrap-sockets {:role 'Seller} {'Buyer sc} :log log)
+                     buy-book catalogue))
+        (when forever (recur))))))
+
+(defn run-buyer [order & {:keys [host port log]
+                          :or {host "127.0.0.1" port port log :dynamic}}]
+  (let [order (merge {:title "To Mock A Mockingbird"
+                      :budget 50
+                      :address "Some Address 123"}
+                     order)]
+    (with-client [sc :host host :port port]
+      (println "Connected to" (str (. sc (getRemoteAddress))))
+      (play-role (wrap-sockets {:role 'Buyer} {'Seller sc} :log log)
+                 buy-book order))))
+
+(comment
+  (virtual-thread (run-seller nil :port port :forever true :log true))
+  (virtual-thread (run-buyer nil :port port))
+  (virtual-thread (run-buyer {:budget 49} :port port))
+  (virtual-thread (run-buyer {:title "Weird"} :port port))
   )
 
 ;;; Laziness
