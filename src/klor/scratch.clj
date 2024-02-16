@@ -241,6 +241,68 @@
   (virtual-thread (run-buyer {:title "Weird"} :port port))
   )
 
+;;; Auth
+
+(defn get-creds []
+  {:password (if (rand-nth [true false]) "secret" "wrong")})
+
+(defchor auth-1 [C S A] [A/n C/creds]
+  (A (println "Attempt" n))
+  (let [A/creds C/creds
+        C/out (C (volatile! nil))]
+    (A (if (= (:password creds) "secret")
+         (select [token C S]
+           (C (vreset! out (S (random-uuid))))
+           nil)
+         (select [invalid C]
+           (C (if (rand-nth [true false])
+                (select [retry A]
+                  (select [A/retry S]
+                    (vreset! out (dance auth-1 [C S A]
+                                        (A (inc n)) (get-creds)))))
+                (select [error A]
+                  (select [A/error S]
+                    (vreset! out :error)))))
+           ;; TODO: The `nil` causes merging to fail at S. Without the nil
+           ;; however, we're forced to communicate to A.
+           #_nil)))
+    (C @out)))
+
+@(simulate-chor auth-1 1 (get-creds))
+
+(comment
+  ;; XXX: An attempt to extract the communication between C and A won't work
+  ;; since the agreement between them established in `auth-2-helper` is not
+  ;; visible to `auth-2`.
+  (defchor auth-2-helper [C A] [C/creds]
+    (let [A/creds C/creds]
+      (A (if (= (:password creds) "secret")
+           (select [token C] true)
+           (select [invalid C]
+             (C (if (rand-nth [true false])
+                  (select [retry A] (dance auth-2-helper [C A] creds))
+                  (select [error A] false))))))))
+
+  (defchor auth-2 [C S A] [C/creds]
+    ;; XXX: This breaks here because it's not visible to the compiler that C and
+    ;; A actually agree on the result of `auth-2-helper`.
+    (A (if (dance auth-2-helper [C A] C/creds)
+         (select [A/token S] (C (vreset! out (S (random-uuid)))))
+         (select [A/error S] (C (vreset! out :error))))))
+
+  ;; XXX; If we had agreement types, we could extract the communication between
+  ;; C and A and preserve the agreement across choreographies.
+  (defchor auth-3-helper [C A] [creds C]
+    (or (A=>C (= (:password (C->A creds)) "secret"))
+        (and (C=>A (rand-nth [true false]))
+             (dance auth-3-helper [C A] creds))))
+
+  (defchor auth-3 [C S A] [creds C]
+    (if (A=>S (dance auth-3-helper [C A] creds))
+      (S->C (random-uuid))
+      (C :error)))
+  )
+
 ;;; Laziness
 
 (comment
