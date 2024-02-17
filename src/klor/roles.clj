@@ -105,11 +105,11 @@
 ;;; - `(Role x ...)` is transformed into `(do x ...)`.
 
 (defn role-of [form]
-  (assert (contains? (meta form) :role) "No role metadata")
+  (assert (contains? (meta form) :role) (str "No role metadata: " form))
   (:role (meta form)))
 
 (defn roles-of [form]
-  (assert (contains? (meta form) :roles) "No role metadata")
+  (assert (contains? (meta form) :roles) (str "No role metadata: " form))
   (:roles (meta form)))
 
 (defn role-union [& forms]
