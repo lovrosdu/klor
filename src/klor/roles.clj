@@ -130,16 +130,20 @@
 
 (defmethod role-analyze-form :vector [ctx form]
   (let [form (mapv (partial role-analyze-form ctx) form)]
-    (merge-meta form {:role (:role ctx) :roles (apply role-union form)})))
+    (merge-meta form {:role (:role ctx) :roles (apply role-union form form)})))
 
 (defmethod role-analyze-form :map [ctx form]
   (let [form (into {} (map #(mapv (partial role-analyze-form ctx) %) form))]
-    (merge-meta form {:role (:role ctx)
-                      :roles (apply role-union (mapcat identity form))})))
+    (merge-meta form
+                {:role (:role ctx)
+                 :roles (union #{(:role ctx)}
+                               (apply role-union (mapcat identity form)))})))
 
 (defmethod role-analyze-form :set [ctx form]
   (let [form (into #{} (map (partial role-analyze-form ctx) form))]
-    (merge-meta form {:role (:role ctx) :roles (apply role-union form)})))
+    (merge-meta form {:role (:role ctx)
+                      :roles (union #{(:role ctx)}
+                                    (apply role-union form))})))
 
 (defmethod role-analyze-form :role [ctx [role & body]]
   (let [body (map (partial role-analyze-form (assoc ctx :role role)) body)]

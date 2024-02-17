@@ -182,14 +182,15 @@
 
 (defmethod project-form :map [ctx form]
   (check-located form ["Unlocated map: " form])
-  (warn-local ["Order of communications within a map is non-deterministic, use "
-               "an explicit `let` instead: " form])
-  (project-simple ctx form form (fn [coms] `(~'hash-map ~@coms))))
+  (warn-local form ["Order of communications within a map is non-deterministic"
+                    ", use an explicit `let` instead: " form])
+  (project-simple ctx form (mapcat identity form)
+                  (fn [coms] `(~'hash-map ~@coms))))
 
 (defmethod project-form :set [ctx form]
   (check-located form ["Unlocated set: " form])
-  (warn-local ["Order of communications within a set is non-deterministic, use"
-               "an explicit `let` instead: " form])
+  (warn-local form ["Order of communications within a set is non-deterministic"
+                    ", use an explicit `let` instead: " form])
   (project-simple ctx form form (fn [coms] `(~'hash-set ~@coms))))
 
 (defmethod project-form :role [ctx form]
