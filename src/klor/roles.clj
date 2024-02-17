@@ -112,8 +112,11 @@
   (assert (contains? (meta form) :roles) (str "No role metadata: " form))
   (:roles (meta form)))
 
-(defn role-union [& forms]
-  (apply union (map #(:roles (meta %)) forms)))
+(defn role-meta [ctx forms & [extra]]
+  (let [role (:role ctx)]
+    {:role role
+     :roles (apply union (if role #{role} #{}) (set extra)
+                   (map roles-of forms))}))
 
 (defmulti role-analyze-form #'form-dispatch)
 
@@ -121,43 +124,36 @@
   ;; Invoked for any non-special operator OP.
   (let [op (role-analyze-form ctx op)
         args (apply list (map (partial role-analyze-form ctx) args))]
-    (merge-meta `(~op ~@args)
-                {:role (:role ctx) :roles (apply role-union args)})))
+    (merge-meta `(~op ~@args) (role-meta ctx args))))
 
 (defmethod role-analyze-form :atom [ctx form]
-  (let [role (:role ctx)]
-    (metaify form {:role role :roles (if role #{role} #{})})))
+  (metaify form (role-meta ctx [])))
 
 (defmethod role-analyze-form :vector [ctx form]
   (let [form (mapv (partial role-analyze-form ctx) form)]
-    (merge-meta form {:role (:role ctx) :roles (apply role-union form form)})))
+    (merge-meta form (role-meta ctx form))))
 
 (defmethod role-analyze-form :map [ctx form]
   (let [form (into {} (map #(mapv (partial role-analyze-form ctx) %) form))]
-    (merge-meta form
-                {:role (:role ctx)
-                 :roles (union #{(:role ctx)}
-                               (apply role-union (mapcat identity form)))})))
+    (merge-meta form (role-meta ctx (mapcat identity form)))))
 
 (defmethod role-analyze-form :set [ctx form]
   (let [form (into #{} (map (partial role-analyze-form ctx) form))]
-    (merge-meta form {:role (:role ctx)
-                      :roles (union #{(:role ctx)}
-                                    (apply role-union form))})))
+    (merge-meta form (role-meta ctx form))))
 
 (defmethod role-analyze-form :role [ctx [role & body]]
-  (let [body (map (partial role-analyze-form (assoc ctx :role role)) body)]
+  (let [ctx (assoc ctx :role role)
+        body (map (partial role-analyze-form ctx) body)]
     (merge-meta (if (and (= (count body) 1)
                          (= (role-of (first body)) role))
                   ;; Simplify the resulting expression if possible.
                   (first body)
                   `(do ~@body))
-                {:role role :roles (conj (apply role-union body) role)})))
+                (role-meta ctx body))))
 
 (defmethod role-analyze-form 'do [ctx [_ & body]]
   (let [body (map (partial role-analyze-form ctx) body)]
-    (merge-meta `(~'do ~@body)
-                {:role (:role ctx) :roles (apply role-union body)})))
+    (merge-meta `(~'do ~@body) (role-meta ctx body))))
 
 (defn role-analyze-let-binding [ctx binding]
   (map (partial role-analyze-form ctx) binding))
@@ -167,26 +163,21 @@
         bindings (mapcat (partial role-analyze-let-binding ctx)
                          (partition 2 bindings))]
     (merge-meta `(~'let [~@bindings] ~@body)
-                {:role (:role ctx)
-                 :roles (apply role-union (concat bindings body))})))
+                (role-meta ctx (concat bindings body)))))
 
 (defmethod role-analyze-form 'if [ctx [_ cond then else :as form]]
-  (let [[cond then else] (map (partial role-analyze-form ctx) [cond then else])]
-    (merge-meta `(~'if ~cond ~then ~else)
-                {:role (:role ctx) :roles (role-union cond then else)})))
+  (let [forms (map (partial role-analyze-form ctx) [cond then else])]
+    (merge-meta `(~'if ~@forms) (role-meta ctx forms))))
 
 (defmethod role-analyze-form 'select [ctx [_ [label & roles] & body]]
   (let [label (role-analyze-form ctx label)
         body (map (partial role-analyze-form ctx) body)]
     (merge-meta `(~'select [~label ~@roles] ~@body)
-                {:role (:role ctx)
-                 :roles (union (apply role-union label body) (set roles))})))
+                (role-meta ctx (cons label body) roles))))
 
 (defmethod role-analyze-form 'dance [ctx [_ name roles & args]]
   (let [args (map (partial role-analyze-form ctx) args)]
-    (merge-meta `(~'dance ~name ~roles ~@args)
-                {:role (:role ctx)
-                 :roles (union (apply role-union args) (set roles))})))
+    (merge-meta `(~'dance ~name ~roles ~@args) (role-meta ctx args roles))))
 
 (defn role-analyze
   "Analyze and annotate FORM and its subforms with metadata describing its owning
