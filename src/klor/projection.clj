@@ -225,7 +225,7 @@
        (let [[op & _] form]
          (= op `offer))))
 
-(defn merge-branches [left right]
+(defn merge-branches [ctx left right]
   (cond
     (and (noop? left) (noop? right))
     noop
@@ -236,16 +236,19 @@
           labels-r (set (keys (apply hash-map options-r)))]
       (cond
         (not= sender-l sender-r)
-        (projection-error ["Cannot merge; different senders: " sender-l
-                           " and " sender-r] :left left :right right)
+        (projection-error ["Cannot merge at " (:role ctx) "; different "
+                           "senders: " sender-l " and " sender-r]
+                          :left left :right right)
         (seq (set/intersection labels-l labels-r))
-        (projection-error ["Cannot merge; overlapping labels: " labels-l
-                           " and " labels-r] :left left :right right)
+        (projection-error ["Cannot merge at " (:role ctx) "; overlapping "
+                           "labels: " labels-l " and " labels-r]
+                          :left left :right right)
         :else
         `(offer ~sender-l ~@options-l ~@options-r)))
     :else
-    (projection-error ["Cannot merge; only noops and offers are supported: "
-                       left " and " right] :left left :right right)))
+    (projection-error ["Cannot merge at " (:role ctx) "; only noops and offers "
+                       "are supported: " left " and " right]
+                      :left left :right right)))
 
 (defmethod project-form 'if [ctx [_ cond then else :as form]]
   (check-located form ["Unlocated `if`: " form])
@@ -264,7 +267,7 @@
       (let [[c t e] (project-coms ctx form [cond then else])]
         (case (classify-role ctx form)
           :me `(if ~c ~t ~e)
-          :in (let [merged (merge-branches t e)]
+          :in (let [merged (merge-branches ctx t e)]
                 (case (classify-role ctx cond)
                   (:me :in) (emit-do [c merged])
                   :none merged)))))))
