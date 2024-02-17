@@ -72,7 +72,7 @@ A choreographic expression is either an **atomic expression** or a **compound ex
 Role expressions mentioned above are just one particular kind of compound expression.
 
 As is customary in Lisps, list compound expressions are treated as applications of operators, which can be **functions** or **special operators**.
-In contrast, **non-list compound expression** (vectors, maps and sets) don't have a similar special interpretation and are instead used to construct a collection of the corresponding type, like in Clojure.
+In contrast, **non-list compound expressions** (vectors, maps and sets) don't have a similar special interpretation and are instead used to construct a collection of the corresponding type, like in Clojure.
 
 Schematically, the following is an overview of the syntax of a choreographic expression `<expr>`:
 
@@ -86,6 +86,7 @@ Schematically, the following is an overview of the syntax of a choreographic exp
     | (let [<binding>*] <expr>*)         ; special operator
     | (if <cond> <then> <else>?)         ; special operator
     | (select [<label> <role>+] <expr>*) ; special operator
+    | (dance <name> [<role>+] <expr>*)   ; special operator
     | [<expr>*]                          ; vector
     | {<pair>*}                          ; map
     | #{<expr>*}                         ; set
@@ -100,7 +101,7 @@ All communications follow the same core "inside out" principle as explained prev
 
 ### Atomic Expressions
 
-An **atomic expression** (also called an **atom**) is any Clojure expression that is not a Clojure collection (list, vector, map or set) -- booleans, numbers, characters, strings, symbols, keywords and nil.
+An **atomic expression** (also called an **atom**, not to be confused with Clojure's atoms) is any Clojure expression that is not a Clojure collection (list, vector, map or set) -- booleans, numbers, characters, strings, symbols, keywords and nil.
 
 ### Functions
 
@@ -141,7 +142,7 @@ The special operators of Klor are:
   The active role is propagated to each `<expr>`.
   Only the result of the last `<expr>`, if any, is communicated, if the location of `<expr>` is different from the location of the whole expression.
 
-  For convenience purposes, role expressions are treated as implicit `do` blocks when they appear in evaluated contexts, which is the reason why they can enclose more than one expression: `(<role> <expr>*)`
+  For convenience purposes, role expressions are treated as implicit `do` blocks when they appear in evaluated contexts, which is the reason why they can enclose more than one expression: `(<role> <expr>*)`.
   Like role-qualified symbols, this makes Klor code more readable and reduces the level of nesting:
 
   ```clojure
@@ -163,7 +164,7 @@ The special operators of Klor are:
   Role-qualified symbols come in handy as binders.
 
   If the location of an `<init-expr>` is different from the location of its corresponding `<binder>`, the value of `<init-expr>` is communicated before it is bound according to `<binder>` at the destination.
-  A communication within the body `<body-expr>*` is determined as in `do`.
+  A communication within the body is determined as in `do`.
 
 - `(if <cond> <then> <else>?)`
 
@@ -174,6 +175,12 @@ The special operators of Klor are:
 
   `select` is a Klor-specific special operator that is relevant for the purposes of projection, but otherwise behaves just like `do`.
   The active role is propagated to `<label>` and `<body-expr>`.
+
+- `(dance <name> [<role>+] <expr>*)`
+
+  `dance` is another Klor-specific special operator and is used to invoke a previously defined choreography.
+  The active role is propagated to all of `<expr>`.
+  The result of any argument `<expr>` is communicated if its location is different from the location of the corresponding parameter of the choreography.
 
 ### Non-list Compound Expressions
 
