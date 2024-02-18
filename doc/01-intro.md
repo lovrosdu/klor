@@ -1,14 +1,14 @@
 # Introduction
 
-This document presents the design of **Klor**, a Clojure library whose goal is to provide support for **choreographic programming** in Clojure.
+**Klor** is a Clojure library whose goal is to provide support for **choreographic programming** in Clojure.
 
-## Background on Choreographies
+## Choreographic Programming
 
-We assume familiary with choreographic programming throughout this document.
+We assume familiary with choreographic programming throughout the documentation.
 Here we provide a quick introduction to get you up to speed, but for more details we recommend looking into the literature of choreographic programming.
 A good starting point is [Introduction to Choreographies](https://doi.org/10.1017/9781108981491).
 
-In brief, choreographic programming is a paradigm where we program a distributed system from a **global viewpoint**.
+In brief, choreographic programming is a paradigm with which we program a distributed system from a **global viewpoint**.
 A distributed system involes multiple **roles** (participants, locations, endpoints) that communicate (usually over a network) by passing messages between each other.
 
 The program that we write is called a **choreography**.
@@ -22,7 +22,8 @@ Choreographic languages make it syntactically impossible to write communications
 ## Principles of Klor
 
 The main idea of Klor is to use macros to embed a choreographic, yet Clojure-like, programming language inside of Clojure.
-Since Clojure emphasizes a functional programming style with a rich set of immutable and persistent data structures, Klor follows suit and tries to move away from the traditional imperative approach to choreographic programming.
+Clojure was chosen as the base because it is a great fit for the inherently concurrent setting of choreographies.
+It emphasizes a functional programming style and comes with a rich set of concurrency primitives and immutable persistent data structures, drastically lowering the amount of concurrency bugs.
 
-In Klor, each choreography is therefore modeled as a function (called a **choreographic function**).
-Choreographies defined with Klor can then be projected to normal Clojure functions as part of Clojure's macroexpansion process, allowing them to be seamlessly integrated with existing Clojure code.
+In Klor, each choreography is modeled as a function (sometimes also called a **choreographic function**).
+Choreographies defined with Klor can be projected to normal Clojure functions as part of Clojure's macroexpansion process and seamlessly integrated with existing Clojure code.

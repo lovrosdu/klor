@@ -1,7 +1,8 @@
 # Syntax
 
-Being embedded in Clojure, the lower-level "surface syntax" of Klor naturally matches the syntax accepted by the [Clojure reader](https://clojure.org/reference/reader), called [Clojure data syntax](https://clojure.org/reference/reader#_extensible_data_notation_edn).
-At a higher-level however, the syntax of Klor's expressions consists of Clojure data structures such as symbols, lists, vectors, etc.
+Being embedded in Clojure, the syntax of Klor naturally matches Clojure's.
+The lower-level "surface syntax" is the syntax accepted by the [Clojure reader](https://clojure.org/reference/reader), called [Clojure data syntax](https://clojure.org/reference/reader#_extensible_data_notation_edn).
+The higher-level syntax is composed of Clojure data structures such as symbols, lists, vectors, etc.
 
 Like Clojure and other Lisps, Klor is an expression-oriented language.
 Below we describe the different kinds of **Klor expressions**.
@@ -30,9 +31,9 @@ Role expressions can be nested arbitrarily, but a Klor expression is only locate
 This works in a manner similar to lexical scope, with the active role propagating to all appropriate subexpressions of `<expr>` (just like a lexical binding's scope propagates to all subexpressions, unless shadowed).
 For example, in the Klor expression `(Ana x (Bob y (Cal z)))`:
 
-  - `x` and `(Bob y (Cal z))` are located at `Ana`,
-  - `y` and `(Cal z)` are located at `Bob`,
-  - `z` is located at `Cal`.
+- `x` and `(Bob y (Cal z))` are located at `Ana`,
+- `y` and `(Cal z)` are located at `Bob`,
+- `z` is located at `Cal`.
 
 To make programs easier to read, Klor also has **role-qualified symbols**.
 A role-qualified symbol is of the form
@@ -146,11 +147,10 @@ The special operators of Klor are:
   Like role-qualified symbols, this makes Klor code more readable and reduces the level of nesting:
 
   ```clojure
-  ;; - Ana sends 1 to Bob,
-  ;; - Bob receives the value and sends it to Cal,
-  ;; - but Dan's 3 and Cal's 2 are not communicated.
+  ;; The following two examples are equivalent. `(f)` and `(g)` are not communicated.
 
-  (Cal (Dan 3) (Bob (Cal 2) (Ana 1)))
+  (Cal (f) (Bob (g) (Ana 1)))
+  (Cal (do (f) (do (Bob (g) (Ana 1)))))
   ```
 
 - `(let [<binding>*] <body-expr>*)`
@@ -169,6 +169,7 @@ The special operators of Klor are:
 - `(if <cond> <then> <else>?)`
 
   The active role is propagated to `<cond>`, `<then>` and `<else>`.
+  The result of `<cond>` is communicated if its location is different from the location of the whole expression.
   The result of either `<then>` or `<else>`, if any, is communicated only if its location is different from the location of the whole expression.
 
 - `(select [<label> <role>+] <body-expr>*)`
