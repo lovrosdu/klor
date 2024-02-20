@@ -15,6 +15,8 @@ Clone the Git repository and use:
 
 - [Introduction](./doc/01-intro.md)
 - [Syntax](./doc/02-syntax.md)
+- [Semantics](./doc/03-semantics.md)
+- [Deployment](./doc/04-deployment.md)
 
 ## Funding
 
