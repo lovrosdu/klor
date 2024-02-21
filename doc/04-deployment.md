@@ -37,7 +37,7 @@ When a role has to send or receive a normal value, Klor will call into one of th
 - `<recv-fn>`: its parameter list is `(<loc>)`; it should receive a value and return it as its result.
 
 `<choose-fn>` and `<offer-fn>` are  just like `<send-fn>` and `<recv-fn>`, respectively, except that they are used when communicating labels.
-`:recv` and `:choose` can be left out, in which case they default to the values of `:send` and `:recv`.
+`:choose` and `:offer` can be left out, in which case they default to the values of `:send` and `:recv`.
 
 All transport functions accept a **locator** as their first argument, which is an arbitrary Clojure value representing the role to send to/receive from.
 It should contain all of the necessary information for the send and receive functions to be able to carry out their effects.
@@ -46,8 +46,8 @@ A locator should be provided for any `<role-i>` that communicates with the role 
 If a locator is left out but ends up being required by a transport function, the symbol naming the role will be used as the locator.
 Practically speaking, locators will most often be mechanisms such as `core.async` channels, TCP sockets, etc.
 
-If a choreography invokes another choreography via the `dance` operator, Klor will make sure to properly "thread" the role configuration for you.
-Any communication actions performed by the invoked choreography will use the same transport functions provided at the top, which will be given the appropriate locators depending on how the invoked choreography was instantiated.
+If a choreography invokes another choreography via the `dance` operator, Klor will make sure to properly "thread" the role configuration for you, taking into account the way the choreography was instantiated.
+Any communication actions performed by the invoked choreography will use the same transport functions and locators provided at the top.
 Therefore, the Clojure user only ever has to worry about the "top-level view" and getting the initial call to `play-role` right.
 
 As an example, say we had the following increment choreography (taken from one of the examples in [Semantics](./03-semantics.md)):
@@ -59,8 +59,8 @@ As an example, say we had the following increment choreography (taken from one o
 
 The correct way to play the roles `Ana` and `Bob`, respectively, is:
 
-- `(play-role {:role 'Ana :locators {'Bob ...} :send ... } increment-chor 5)`
-- `(play-role {:role 'Bob :locators {'Ana ...} :send ... } increment-chor)`
+- `(play-role {:role 'Ana :send ... :locators {'Bob ...}} increment-chor 5)`
+- `(play-role {:role 'Bob :send ... :locators {'Ana ...}} increment-chor)`
 
 Notice how the projection at `Ana` takes a single argument and the one at `Bob` takes none.
 Both invocations of `play-role` have to specify all necessary locators and transport functions.
@@ -72,7 +72,7 @@ For this purpose, Klor provides a **simulator** which automatically runs each pr
 All of this is implemented completely through Klor's interface mentioned above, by defining appropriate transport functions and locators.
 
 The simulator's interface is the `(simulate-chor <chor> <arg>*)` function.
-Unlike when invoking a particular projection using `play-role`, the arguments provided to `simulate-chor` are used for the whole parameter list of the choreography, and will be automatically distributed to each of the projections.
+Unlike `play-role`, the arguments provided to `simulate-chor` are used for the whole parameter list of the choreography, and will be automatically distributed to each of the projections.
 The function returns a Clojure promise that can be deref'd in order to wait for all started threads to terminate.
 
 The simulator logs to standard output all communications and selections between roles, when each role is spawned and terminated, and all output produced by the roles (e.g. by a function such as `print`).
@@ -92,7 +92,7 @@ Ana exited
 ## Example: The Buyer--Seller Choreography and TCP
 
 Using Klor's interface it is already possible to model a practical real-world example.
-Here we implement the classical buyer--seller choreography and run it over TCP sockets.
+Here we implement the classical Buyer--Seller choreography and run it over TCP sockets.
 
 First we define the choreography.
 Two roles, `Buyer` and `Seller`, communicate in order for `Buyer` to buy a book from `Seller`:
@@ -103,13 +103,13 @@ Two roles, `Buyer` and `Seller`, communicate in order for `Buyer` to buy a book 
 - `Buyer` sends its decision to `Seller`, along with an address if necessary,
 - `Seller` receives the decision and possibly ships the book to the `Buyer`.
 
-Before we show the choreography in Klor, assume we model the problem using the following:
+Assume we model the problem in Clojure using the following:
 
 - `order` is a map `{:title <string> :budget <number> :address <string>}`,
 - `catalogue` is a map `{<string> <number>}` mapping book names to their prices,
 - `ship!` is a side effectful function that given the address executes the book shipment.
 
-Putting it all together, we might end up with the following:
+Putting it all together, here's how the choreography might look like in Klor:
 
 ```clojure
 (defn ship! [address]
@@ -132,9 +132,9 @@ Putting it all together, we might end up with the following:
 ```
 
 Once the choreography is in place, we can write "driver code" that will invoke the respective projections using `play-role` and configure the necessary transport functions and TCP sockets as the locators.
-For a TCP connection to work one of the roles will have to act as a server, so we choose the `Seller` to be the server and `Buyer` to be the client.
+For a TCP connection to work one of the roles will have to act as a server, so we choose `Seller` to be the server and `Buyer` to be the client.
 
-Klor provides the `wrap-sockets` utility which installs `:send` and `:recv` transport functions that will perform their communication assuming the locators are standard Java `SocketChannel` objects.
+Klor provides the `wrap-sockets` utility which produces a role configuration containing `:send` and `:recv` transport functions that perform their communication assuming the locators are standard Java NIO `SocketChannel` objects.
 For serializing and deserializing Clojure values, the functions use the [Nippy](https://github.com/taoensso/nippy) serialization library.
 
 The drivers also use a few more utilities -- `with-server`, `with-accept` and `with-client`, all part of Klor -- which are convenience macros that deal with the boilerplate of setting up a server socket, accepting connections from clients, and connecting a client to a server.
@@ -170,8 +170,8 @@ The drivers are `run-seller` and `run-buyer`:
 ```
 
 Note that the drivers come with some hardcoded data for the purposes of the example.
-In particular, the `Seller`'s catalogue is the map `{"To Mock A Mockingbird" 50}` if `nil` is given.
-Similarly, the `Buyer`'s order is merged with the default map `{:title "To Mock A Mockingbird" :budget 50 :address "Some Address 123"}`.
+In particular, the catalogue used by `run-seller` defaults to the map `{"To Mock A Mockingbird" 50}` if `nil` is given.
+Similarly, the order provided to `run-buyer` order is merged with the default map `{:title "To Mock A Mockingbird" :budget 50 :address "Some Address 123"}`.
 
 Now we can run the `Seller` on a separate thread with some logging enabled: `(run-seller nil :forever true :log true)`.
 This will start the server and run in a loop forever, accepting one `Buyer` at a time.

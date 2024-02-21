@@ -10,22 +10,28 @@ Each projection retains only the subexpressions relevant to the particular role 
 
 ## Evaluation and Projection
 
-Below, we describe in detail the meaning of each Klor expression by describing how it is evaluated and what communications between roles it prescribes.
-To keep it close with the way it's done in practice, we specify the evaluation semantics **indirectly**, by stating what an expression projects to at each role.
+Below, we explain in detail the meaning of each Klor expression by describing how it is evaluated and what communications it prescribes between roles.
+To keep it close to the way it's done in practice, we specify the evaluation semantics **indirectly**, by stating what an expression projects to at each role.
 A full treatment of the theory of projection with all of its details and properties is out of the scope of this document, but we try to give a working summary here.
 
 In general, the projection of a Klor expression at a role depends on which of its parts are annotated with that role.
-For example, an expression might be projected differently for a role `Ana` depending on whether it is **located** at `Ana`, **only involves** `Ana` in its subexpressions, or **doesn't involve** `Ana` at all.
-Additionally, whenever an expression located at `Ana` needs the result of another expression located at `Bob`, the projections of both will have to include communication actions so that `Bob` can send its result to `Ana` and `Ana` can receive it from `Bob`.
+For example, an expression might be projected differently for a role `r` depending on whether it is **located** at `r`, **only involves** `r` in its subexpressions, or **doesn't involve** `r` at all.
+Additionally, whenever an expression located at `r` needs the result of another expression located at `s`, the projections of both will have to include communication actions so that `s` can send its result to `r` and `r` can receive it from `s`.
 
-Projection works **recursively** through the subexpressions of a Klor expression and applies the above considerations at every step in order to produce code that contains all the necessary expressions and communication actions described by the choreography.
-The general idea of the process of projecting an expression for a role is:
+Projection works **recursively** through the subexpressions of a Klor expression and applies the above considerations at every step in order to produce code that contains all of the necessary expressions and communication actions described by the choreography.
+The rough idea of the process of projecting an expression for a role is:
 
-- If the expression is **located** at the role, the projection usually retains the expression and arranges any necessary communication actions to receive the values of subexpressions that are located at a different role,
-- Otherwise, if the expression **only involves** the role in its subexpressions, the projection is required to evaluate to `nil` but also includes any necessary communication actions to first send the values of the subexpressions to the role of the enclosing expression,
+- If the expression is **located** at the role, the projection usually retains the expression, projects all appropriate subexpressions recursively, and arranges any necessary communication actions to receive the values of subexpressions that are located at a different role,
+- Otherwise, if the expression **only involves** the role in its subexpressions, the projection is usually required to evaluate to `nil`, but must again project all appropriate subexpressions recursively and include any necessary communication actions to first send the values of the subexpressions to the role of the enclosing expression,
 - Otherwise, if the expression **doesn't involve** the role at all, the projection is `nil`.
 
-In the projection examples below we use `send` and `recv` for the internal operators that implement the mentioned communication actions in the projections. `(send '<role> <expr>)` sends the result of `<expr>` to `<role>` and `(recv '<role>)` receives a value from `<role>`.
+The above is only meant to give a general understanding of Klor's projection and does not precisely describe the details of some special operators, such as `do` or `dance`.
+For a precise description of each expression's behavior, see the next sections.
+
+In the projection examples below we use `send` and `recv` for the internal operators that implement the mentioned communication actions in the projections:
+
+- `(send '<role> <expr>)` sends the result of `<expr>` to `<role>`,
+- `(recv '<role>)` receives a value from `<role>`.
 
 ### Atomic Expressions
 
@@ -208,9 +214,9 @@ The various branches are part of the `offer` expression and are assembled from t
 The body of the `select` forms an implicit `do` block and is projected recursively.
 
 In order for an `if` to be projectable when multiple roles are involved in its body, its two branches need to contain appropriate selections for all roles that are not `r`.
-During projection, all `offer` terms found in the branches are **merged** together to form the final projection.
+During projection, all `offer` expressions from the branches are **merged** together to form the final projection.
 The process of merging is technically involved and is out of the scope of this document.
-However, in case merging fails due to inadequate knowledge of choice, Klor will report an error during compilation.
+However, in case merging fails due to inadequate knowledge of choice, Klor will report an error during projection.
 
 For example:
 
@@ -248,11 +254,25 @@ A choreography is allowed to invoke itself recursively.
 The role vector `[<role>+]` **instantiates** the choreography's role parameters with a sequence of some role parameters currently in scope.
 **Aliasing is not allowed**, i.e. each role parameter of the choreography must be instantiated with a separate role parameter from the current scope.
 
-The projection at any role `r` that is present within the role vector is the invocation of a particular projection of the target choreography, the one corresponding to the choreography's role parameter that `r` instantiates.
-The return value of that invocation is the return value of the specific projection.
+The projection at any role `r` that is present within the role vector is the invocation of a particular projection `f` of the target choreography: the one corresponding to the choreography's role parameter that `r` instantiates.
+As a consequence, the return value of the projection of `dance` is the return value of `f`.
 If an `<expr>` that initializes a parameter belonging to `r` is located at a role different from `r`, its result is communicated from that role to `r`.
 
 The projection is required to evaluate to `nil` at any other role.
+
+For example:
+
+```clojure
+;; Invoking a choreography (`f_X` and `f_Y` denote projections of `f`).
+
+(defchor f [X Y] [X/x]
+  X/x)
+
+(dance f [Bob Ana] (Ana 123))
+
+Ana: (do (send 'B 123) (f_Y))
+Bob: (f_X (recv 'A))
+```
 
 ### Non-list Compound Expressions
 
@@ -269,7 +289,7 @@ The projection is required to evaluate to `nil` at any other role.
 
 One peculiarity of "code is data" and unordered collections (maps and sets) as expressions is the fact that the order in which communications are done depends on the order of the expressions in the collection, which is in general non-deterministic.
 The order is guaranteed to be consistent for a given fixed collection object, but is not guaranteed to be the same between two different collection objects even if they compare equal (let alone between equal collections that are part of multiple executions of the same or different Clojure processes, etc.).
-For that reason, Klor will issue a warning whenever a map or set expression contains elements located at a role different from `r`.
+For that reason, Klor will issue a warning whenever a map or set expression contains subexpressions located at a role different from `r`.
 
 ```clojure
 ;; No communications are done.
@@ -292,8 +312,8 @@ Cal: (do (send 'Ana 3) nil)
 ;; A warning is issued when the order of communications is non-deterministic.
 
 (Ana #{(Ana 1) (Bob 2) (Cal 3)})
->> WARNING: Order of communications within a set is non-deterministic, use an explicit `let` instead
 
+>> WARNING: Order of communications within a set is non-deterministic, use an explicit `let` instead
 Ana: (hash-set 1 (recv 'Cal) (recv 'Bob))
 Bob: (do (send 'Ana 2) nil)
 Cal: (do (send 'Ana 3) nil)
