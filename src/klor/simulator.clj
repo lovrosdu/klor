@@ -57,11 +57,11 @@
       (log from "-->" to (str "[" (pr-str value) "]"))
       value)))
 
-(defn wrap-channels [{:keys [role] :as state} channels]
+(defn wrap-channels [{:keys [role] :as config} channels]
   (merge {:send (channel-send channels role)
           :recv (channel-recv channels role)
           :offer (channel-offer channels role)}
-         state))
+         config))
 
 ;;; Simulator
 

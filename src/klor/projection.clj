@@ -3,7 +3,7 @@
   (:require [clojure.set :as set]
             [klor.roles :refer [role-expand role-analyze role-of roles-of]]
             [klor.runtime :refer [send recv choose offer play-role locator
-                                  *state*]]
+                                  *config*]]
             [klor.util :refer [unmetaify form-dispatch error warn
                                fully-qualify]]))
 
@@ -327,7 +327,7 @@
           :in (emit-let
                (mapcat identity bindings)
                [`(play-role
-                  (merge *state*
+                  (merge *config*
                          {:role '~(get (set/map-invert subs) (:role ctx))
                           :locators ~(project-dance-locators subs)})
                   ~name ~@(remove #(= % '_) (map first bindings)))])

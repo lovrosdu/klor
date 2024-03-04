@@ -41,7 +41,7 @@
     (when *log* (println (str (. sc (getRemoteAddress))) "-->" (pr-str value)))
     value))
 
-(defn wrap-sockets [state sockets & {:keys [log] :or {log :dynamic}}]
+(defn wrap-sockets [config sockets & {:keys [log] :or {log :dynamic}}]
   (letfn [(wrap-log [f]
             (if (= log :dynamic)
               f
@@ -51,7 +51,7 @@
     (merge {:locators sockets
             :send (wrap-log socket-send)
             :recv (wrap-log socket-recv)}
-           state)))
+           config)))
 
 (defmacro with-server [[sym & {:keys [host port] :or {host "0.0.0.0"}}] & body]
   `(let [~sym (doto (ServerSocketChannel/open)
