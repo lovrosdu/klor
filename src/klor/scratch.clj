@@ -129,9 +129,9 @@
 (defn ship! [address]
   (str (java.time.LocalDate/now)))
 
-(defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
+(defchor buy-book [Buyer Seller] [Buyer/order Seller/catalog]
   (let [Seller/title (Buyer (:title order))
-        Buyer/price (Seller (get catalogue title :none))]
+        Buyer/price (Seller (get catalog title :none))]
     (Buyer
      (if (and (int? price) (>= (:budget order) price))
        (select [Buyer/ok Seller]
@@ -146,15 +146,15 @@
 (let [order {:title "To Mock A Mockingbird"
              :budget 50
              :address "Some Address 123"}
-      catalogue {"To Mock A Mockingbird" 50}]
-  @(simulate-chor buy-book order catalogue))
+      catalog {"To Mock A Mockingbird" 50}]
+  @(simulate-chor buy-book order catalog))
 
 ;; TODO: Get rid of MetaBoxes when emitting.
 (comment
   (defchor buy-book [Buyer Seller]
-    [(Buyer {:keys [title budget address]}) Seller/catalogue]
+    [(Buyer {:keys [title budget address]}) Seller/catalog]
     (Buyer
-     (let [price (Seller (get catalogue title :none))]
+     (let [price (Seller (get catalog title :none))]
        (if (and (int? price) (>= (:budget order) price))
          (select [Buyer/ok Seller]
            (println "I'll get the book on" (Seller (ship! Buyer/address))))
@@ -222,17 +222,17 @@
 
 (def port 1337)
 
-(defn run-seller [catalogue & {:keys [host port forever log] :or
+(defn run-seller [catalog & {:keys [host port forever log] :or
                                {host "0.0.0.0" port port
                                 forever false log :dynamic}}]
-  (let [catalogue (or catalogue {"To Mock A Mockingbird" 50})]
+  (let [catalog (or catalog {"To Mock A Mockingbird" 50})]
     (with-server [ssc :host host :port port]
       (loop []
         (println "Listening on" (str (. ssc (getLocalAddress))))
         (with-accept [ssc sc]
           (println "Got client" (str (. sc (getRemoteAddress))))
           (play-role (wrap-sockets {:role 'Seller} {'Buyer sc} :log log)
-                     buy-book catalogue))
+                     buy-book catalog))
         (when forever (recur))))))
 
 (defn run-buyer [order & {:keys [host port log]

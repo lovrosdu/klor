@@ -106,7 +106,7 @@ Two roles, `Buyer` and `Seller`, communicate in order for `Buyer` to buy a book 
 Assume we model the problem in Clojure using the following:
 
 - `order` is a map `{:title <string> :budget <number> :address <string>}`,
-- `catalogue` is a map `{<string> <number>}` mapping book names to their prices,
+- `catalog` is a map `{<string> <number>}` mapping book names to their prices,
 - `ship!` is a side effectful function that given the address executes the book shipment.
 
 Putting it all together, here's how the choreography might look like in Klor:
@@ -116,9 +116,9 @@ Putting it all together, here's how the choreography might look like in Klor:
   ;; Assume some side effect occurs.
   (str (java.time.LocalDate/now)))
 
-(defchor buy-book [Buyer Seller] [Buyer/order Seller/catalogue]
+(defchor buy-book [Buyer Seller] [Buyer/order Seller/catalog]
   (let [Seller/title (Buyer (:title order))
-        Buyer/price (Seller (get catalogue title :none))]
+        Buyer/price (Seller (get catalog title :none))]
     (Buyer
      (if (and (int? price) (>= (:budget order) price))
        (select [Buyer/ok Seller]
@@ -144,17 +144,17 @@ The drivers are `run-seller` and `run-buyer`:
 ```clojure
 (def port 1337)
 
-(defn run-seller [catalogue & {:keys [host port forever log] :or
+(defn run-seller [catalog & {:keys [host port forever log] :or
                                {host "0.0.0.0" port port
                                 forever false log :dynamic}}]
-  (let [catalogue (or catalogue {"To Mock A Mockingbird" 50})]
+  (let [catalog (or catalog {"To Mock A Mockingbird" 50})]
     (with-server [ssc :host host :port port]
       (loop []
         (println "Listening on" (str (. ssc (getLocalAddress))))
         (with-accept [ssc sc]
           (println "Got client" (str (. sc (getRemoteAddress))))
           (play-role (wrap-sockets {:role 'Seller} {'Buyer sc} :log log)
-                     buy-book catalogue))
+                     buy-book catalog))
         (when forever (recur))))))
 
 (defn run-buyer [order & {:keys [host port log]
@@ -170,7 +170,7 @@ The drivers are `run-seller` and `run-buyer`:
 ```
 
 Note that the drivers come with some hardcoded data for the purposes of the example.
-In particular, the catalogue used by `run-seller` defaults to the map `{"To Mock A Mockingbird" 50}` if `nil` is given.
+In particular, the catalog used by `run-seller` defaults to the map `{"To Mock A Mockingbird" 50}` if `nil` is given.
 Similarly, the order provided to `run-buyer` order is merged with the default map `{:title "To Mock A Mockingbird" :budget 50 :address "Some Address 123"}`.
 
 Now we can run the `Seller` on a separate thread with some logging enabled: `(run-seller nil :forever true :log true)`.
@@ -208,7 +208,7 @@ Got client /127.0.0.1:56662
 Buyer changed his mind
 ```
 
-When the book is not found in the catalogue:
+When the book is not found in the catalog:
 
 ```
 klor> (run-buyer {:title "Weird"})
