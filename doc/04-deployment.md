@@ -127,8 +127,8 @@ Putting it all together, here's how the choreography might look like in Klor:
            (println "I'll get the book on" date)
            date))
        (select [Buyer/ko Seller]
-         (do (Seller (println "Buyer changed his mind"))
-             nil))))))
+         (Seller (println "Buyer changed his mind"))
+         nil)))))
 ```
 
 Once the choreography is in place, we can write "driver code" that will invoke the respective projections using `play-role` and configure the necessary transport functions and TCP sockets as the locators.

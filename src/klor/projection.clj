@@ -222,9 +222,7 @@
               (project-body ctx form body))))
 
 (defn offer? [form]
-  (and (seq? form)
-       (let [[op & _] form]
-         (= op `offer))))
+  (and (seq? form) (= (first form) `offer)))
 
 (defn merge-branches [ctx left right]
   (cond

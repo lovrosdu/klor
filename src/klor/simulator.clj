@@ -33,7 +33,7 @@
 (defn ensure-channel [channels from to]
   (if (get channels [from to])
     channels
-    (conj channels [[from to] (a/chan )])))
+    (conj channels [[from to] (a/chan)])))
 
 (defn get-channel [channels from to]
   (let [channels (swap! channels ensure-channel from to)]

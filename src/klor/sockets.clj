@@ -1,6 +1,5 @@
 (ns klor.sockets
-  (:require [klor.macros :refer [defchor select]]
-            [klor.runtime :refer [play-role]]
+  (:require [klor.runtime :refer [play-role]]
             [taoensso.nippy :as nippy])
   (:import java.nio.ByteBuffer
            (java.net InetSocketAddress

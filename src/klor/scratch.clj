@@ -35,6 +35,10 @@
 
 ;;; Functions
 
+(doit '(Ana (println (Bob (inc (Ana x))))))
+
+(doit '(Cal (+ (Ana x) (Bob y))))
+
 (doit '(Ana (+ (Bob 1) (Cal (- (Ana 5) (Bob 3))))))
 
 ;;; Do
@@ -55,13 +59,13 @@
 
 ;;; Let
 
-(doit '(let [Ana/x Bob/x
+(doit '(let [Ana/x (Bob 'foo)
+             Ana/x (Ana (inc x))
              Cal/x (Bob (Ana 123))
-             Eli/y (Eli 123)]
-         (Ana 666)
-         (Bob 123)
-         (Cal z)
-         (Dan 3)
+             Eli/y (Eli 456)]
+         (Bob 789)
+         (Cal x)
+         (Dan 'bar)
          (Ana x)))
 
 ;;; Select
@@ -136,8 +140,8 @@
            (println "I'll get the book on" date)
            date))
        (select [Buyer/ko Seller]
-         (do (Seller (println "Buyer changed his mind"))
-             nil))))))
+         (Seller (println "Buyer changed his mind"))
+         nil)))))
 
 (let [order {:title "To Mock A Mockingbird"
              :budget 50
@@ -155,20 +159,28 @@
          (select [Buyer/ok Seller]
            (println "I'll get the book on" (Seller (ship! Buyer/address))))
          (select [Buyer/ko Seller]
-           (do (Seller (println "Buyer changed his mind"))
-               nil)))))))
+           (Seller (println "Buyer changed his mind"))
+           nil))))))
 
 ;;; Dance
 
-(defchor f [X Y] [X/x Y/y]
+(defchor f1 [X Y] [X/x Y/y]
   (X (println x))
   (Y (println y))
   (X 123))
 
-(defchor g [A B C] [A/x B/y]
-  (C (println (A (dance f [B A] A/x B/y)))))
+(defchor g1 [A B] [A/a B/b]
+  (dance f1 [B A] A/a B/b))
 
-@(simulate-chor g 123 456)
+@(simulate-chor g1 123 456)
+
+(defchor f2 [X Y] [X/x]
+  X/x)
+
+(defchor g2 [A B] []
+  (dance f2 [B A] (A 123)))
+
+@(simulate-chor g2)
 
 ;;; Ping-Pong
 
@@ -285,7 +297,8 @@
 
   (defchor auth-2 [C S A] [C/creds]
     ;; XXX: This breaks here because it's not visible to the compiler that C and
-    ;; A actually agree on the result of `auth-2-helper`.
+    ;; A actually agree on the result of `auth-2-helper`. A way to fix it would
+    ;; be to also include C in the selection, but that would be redundant.
     (A (if (dance auth-2-helper [C A] C/creds)
          (select [A/token S] (C (vreset! out (S (random-uuid)))))
          (select [A/error S] (C (vreset! out :error))))))
