@@ -209,7 +209,7 @@ The projection at `s` is a special `choose` expression that is like a `send` but
 
 The projection at any `<role>` (which is not allowed to be `s`) is a special `offer` expression.
 An `offer` expression acts like a `recv` but for a label, except that it also dispatches on the label's value to select a branch.
-The various branches are part of the `offer` expression and are assembled from the bodies of `select` expressions found within both branches.
+The branches part of an `offer` expression are assembled from the bodies of `select` expressions found within the conditional.
 
 The body of the `select` forms an implicit `do` block and is projected recursively.
 

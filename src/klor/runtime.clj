@@ -15,7 +15,7 @@
 
 (defn send [to value]
   (config-invoke :send "Send function undefined" (locator to) value)
-  ;; NOTE: `send` returns nil.
+  ;; NOTE: The projection assumes that `send` always returns nil.
   nil)
 
 (defn recv [from]
@@ -23,7 +23,7 @@
 
 (defn choose [to label]
   (config-invoke [:choose :send] "Choose function undefined" (locator to) label)
-  ;; NOTE: `choose` returns nil.
+  ;; NOTE: The projection assumes that `choose` always returns nil.
   nil)
 
 (defn offer* [from]

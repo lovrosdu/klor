@@ -95,19 +95,19 @@ Using Klor's interface it is already possible to model a practical real-world ex
 Here we implement the classical Buyer--Seller choreography and run it over TCP sockets.
 
 First we define the choreography.
-Two roles, `Buyer` and `Seller`, communicate in order for `Buyer` to buy a book from `Seller`:
+Two roles, `Buyer` and `Seller`, communicate for `Buyer` to buy a book from `Seller`:
 
 - `Buyer` sends `Seller` the title of the book,
 - `Seller` receives the title, looks up the price of the book and sends it to `Buyer`,
-- `Buyer` receives the price and decides whether or not to buy the book depending on its budget,
+- `Buyer` receives the price and decides whether to buy the book depending on its budget,
 - `Buyer` sends its decision to `Seller`, along with an address if necessary,
-- `Seller` receives the decision and possibly ships the book to the `Buyer`.
+- `Seller` receives the decision and possibly returns the delivery date to the `Buyer`.
 
 Assume we model the problem in Clojure using the following:
 
 - `order` is a map `{:title <string> :budget <number> :address <string>}`,
-- `catalog` is a map `{<string> <number>}` mapping book names to their prices,
-- `ship!` is a side effectful function that given the address executes the book shipment.
+- `catalog` is a map of `<string> <number>` pairs mapping book names to their prices,
+- `ship!` is a side effectful function that, given the address, executes the book shipment and returns the delivery date.
 
 Putting it all together, here's how the choreography might look like in Klor:
 

@@ -39,7 +39,7 @@
 ;;;
 ;;; If F's value is used by the enclosing then we call F a "com" (or in "com
 ;;; position") with respect to the enclosing form, because its value might have
-;;; to be communicated depending on whether the roles of the two agree or not.
+;;; to be communicated depending on whether the roles of the two agree.
 ;;;
 ;;; If F contains no actions relevant to R, projection produces a special
 ;;; no-op ("noop") value. However, if F's value is used by the projection of the
