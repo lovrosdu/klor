@@ -111,19 +111,14 @@
      :body     (clj-analyzer/analyze-body body env')
      :children [:bindings :init :body]}))
 
-(defn analyze-chor-param [form env param]
-  (when-not (usym? param)
-    (analysis-error ["Invalid `chor*` param: " param] form env))
-  {:op    :binding
-   :form  param
-   :env   env
-   :local :chor
-   :name  param})
-
-(defn parse-chor* [[_ tspec params & body :as form] env]
+(defn parse-chor-args [[_ & [name & _ :as args] :as form] env]
   (when-not (>= (count form) 3)
     (analysis-error "`chor*` needs at least 2 arguments" form env))
-  (let [{:keys [ctor aux] :as signature} (parse-type tspec)]
+  (let [[name tspec params & body] (if (symbol? name) args (cons nil args))
+        {:keys [ctor aux] :as signature} (parse-type tspec)]
+    (when (and name (not (usym? name)))
+      (analysis-error ["`chor`'s name must be an unqualified symbol: " name]
+                      form env))
     (when-not signature
       (analysis-error ["Invalid `chor` signature: " tspec] form env))
     (when-not (= ctor :chor)
@@ -141,16 +136,36 @@
     (when-not (vector? params)
       (analysis-error ["`chor` needs a vector of parameters: " params]
                       form env))
-    (let [bindings (mapv (partial analyze-chor-param form env) params)
-          locals (into {} (for [b bindings] [(:name b) (dissoc-env b)]))
-          env' (mmerge env {:locals locals})]
-      {:op        :chor
-       :form      form
-       :env       env
-       :signature signature
-       :params    bindings
-       :body      (clj-analyzer/analyze-body body env')
-       :children  [:params :body]})))
+    (list* name signature params body)))
+
+(defn analyze-chor-param [form env param]
+  (when-not (usym? param)
+    (analysis-error ["Invalid `chor*` param: " param] form env))
+  {:op    :binding
+   :form  param
+   :env   env
+   :local :chor
+   :name  param})
+
+(defn parse-chor* [form env]
+  (let [[name signature params & body] (parse-chor-args form env)
+        local (and name {:op    :binding
+                         :form  name
+                         :env   env
+                         :local :chor
+                         :name  name})
+        bindings (mapv (partial analyze-chor-param form env) params)
+        locals (into (if name {name (dissoc-env local)} {})
+                     (for [b bindings] [(:name b) (dissoc-env b)]))
+        env' (mmerge env {:locals locals})]
+    (merge {:op   :chor
+            :form form
+            :env  env}
+           (and name {:local local})
+           {:signature signature
+            :params    bindings
+            :body      (clj-analyzer/analyze-body body env')
+            :children  (into (if name [:local] []) [:params :body])})))
 
 (defn parse-inst [[_ name roles :as form] env]
   (when-not (= (count form) 3)

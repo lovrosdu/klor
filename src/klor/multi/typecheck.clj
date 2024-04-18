@@ -151,19 +151,22 @@
       ;; Update the node's type
       (with-type ast''' (:rtype body) tenv))))
 
-(defmethod -typecheck :chor [tenv {:keys [form env params signature] :as ast}]
+(defmethod -typecheck :chor
+  [tenv {:keys [form env local signature params] :as ast}]
   (let [{sparams :params :keys [ret]} signature]
     (when-not (= (count params) (count sparams))
       (analysis-error ["`chor`'s parameter vector's shape doesn't match its "
                        "signature: got " (mapv :form params) ", expected "
                        (mapv render-type sparams)]
                       form env))
-    (let [;; Infer the type of each param
+    (let [;; Infer the type of the name, if present
+          local' (and local (with-type local signature tenv))
+          ;; Infer the type of each param
           params' (mapv #(with-type %1 %2 tenv) params sparams)
-          ;; Update the node's params
-          ast' (assoc ast :params params')
+          ;; Update the node's params and name, if present
+          ast' (cond-> (assoc ast :params params') local (assoc :local local'))
           ;; Update the typing environment
-          tenv' (extend-tenv tenv params')
+          tenv' (extend-tenv tenv (concat (and local [local']) params'))
           ;; Typecheck the body
           {:keys [body] :as ast''} (-typecheck* tenv' ast' [:body])
           {type :rtype mentions :rmentions} body]
@@ -187,10 +190,10 @@
   (let [;; Infer the type of the function's name, if present
         ltype {:ctor :agree :roles (:mask env)}
         local' (and local (with-type local ltype tenv))
-        ;; Update the node's name
-        ast' (assoc ast :local local')
+        ;; Update the node's name, if present
+        ast' (cond-> ast local (assoc :local local'))
         ;; Update the typing environment, if necessary
-        tenv' (if local' (extend-tenv tenv [local']) tenv)
+        tenv' (cond-> tenv local (extend-tenv [local']))
         ;; Typecheck each method
         ast'' (-typecheck* tenv' ast' [:methods])]
     (with-type ast'' ltype tenv)))

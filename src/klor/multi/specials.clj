@@ -1,32 +1,36 @@
 (ns klor.multi.specials
   (:require [klor.util :refer [warn]]))
 
-(defmacro at [[& roles] expr]
+(defmacro at [[role+] expr]
   (warn "`at` used outside of a choreographic context")
   &form)
 
-(defmacro local [[& roles] expr]
+(defmacro local [[role+] & body]
+  {:style/indent 1}
   (warn "`local` used outside of a choreographic context")
   &form)
 
-(defmacro copy [[from to] expr]
+(defmacro copy [[src dst] expr]
   (warn "`copy` used outside of a choreographic context")
   &form)
 
-(defmacro pack [& exprs]
+(defmacro pack [expr+]
   (warn "`pack` used outside of a choreographic context")
   &form)
 
-(defmacro unpack* [binder init & body]
+(defmacro unpack*
   {:style/indent 2}
+  [[binder+] init & body]
   (warn "`unpack*` used outside of a choreographic context")
   &form)
 
-(defmacro chor* [signature [& params] & body]
-  {:style/indent 2}
+(defmacro chor*
+  {:style/indent :defn
+   :arglists '([signature [params*] & body] [name signature [params*] & body])}
+  [& _]
   (warn "`chor*` used outside of a choreographic context")
   &form)
 
-(defmacro inst [name [& roles]]
+(defmacro inst [name [role+]]
   (warn "`inst` used outside of a choreographic context")
   &form)

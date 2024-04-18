@@ -6,8 +6,10 @@
 (defmacro move [[src dst] expr]
   `(at [~dst] (copy [~src ~dst] ~expr)))
 
-(defmacro unpack [bindings & body]
-  {:style/indent 1}
+(defmacro unpack
+  {:style/indent 1
+   :arglists '([[(binder init) *] & body])}
+  [bindings & body]
   (when-not (and (vector? bindings) (even? (count bindings)))
     (error :klor ["`unpack` needs a vector with an even number of bindings: "
                   bindings]))
@@ -23,15 +25,18 @@
     (unpack-binder? param) [param (gensym "p")]
     :else (error :klor ["Invalid `chor` param: " param])))
 
-(defmacro chor [signature params & body]
-  {:style/indent 2}
-  (when-not (vector? params)
-    (error :klor ["`chor` needs a vector of parameters: " params]))
-  (let [params (map process-chor-param params)
-        unpacks (filter first params)
-        names (mapv second params)]
-    `(chor* ~signature ~names
-       ~@(if (empty? unpacks)
-           body
-           `((unpack ~(into [] (apply concat unpacks))
-               ~@body))))))
+(defmacro chor
+  {:style/indent :defn
+   :arglists '([tspec [params*] & body] [name tspec [params*] & body])}
+  [& [name & _ :as args]]
+  (let [[name tspec params & body] (if (symbol? name) args (cons nil args))]
+    (when-not (vector? params)
+      (error :klor ["`chor` needs a vector of parameters: " params]))
+    (let [params (map process-chor-param params)
+          unpacks (filter first params)
+          names (mapv second params)]
+      `(chor* ~@(and name `(~name)) ~tspec ~names
+         ~@(if (empty? unpacks)
+             body
+             `((unpack ~(into [] (apply concat unpacks))
+                 ~@body)))))))

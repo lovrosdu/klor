@@ -47,8 +47,10 @@
     ~(clj-emit/-emit-form* init opts)
     ~(clj-emit/-emit-form* body opts)))
 
-(defmethod -emit-form :chor [{:keys [signature params body]} opts]
-  `(~'chor* ~(render-type signature)
+(defmethod -emit-form :chor [{:keys [local signature params body]} opts]
+  `(~'chor*
+    ~@(and local `(~(clj-emit/-emit-form* local opts)))
+    ~(render-type signature)
     ~(mapv #(clj-emit/-emit-form* % opts) params)
     ~(clj-emit/-emit-form* body opts)))
 
