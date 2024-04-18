@@ -7,6 +7,8 @@
                  [metabox/metabox "0.2.0"]
                  [mvxcvi/puget "1.3.4"]
                  [org.clojure/clojure "1.11.1"]
-                 [org.clojure/core.async "1.6.681"]]
+                 [org.clojure/core.async "1.6.681"]
+                 [org.clojure/tools.analyzer.jvm "1.3.0"]
+                 [potemkin/potemkin "0.4.6"]]
   :main klor.core
   :repl-options {:init-ns klor.core})

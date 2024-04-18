@@ -3,11 +3,16 @@
 
 ;;; Reporting
 
-(defn make-message [message]
-  (if (string? message) message (apply str message)))
+(defn -str [& xs]
+  ;; NOTE: Clojure's `str` returns the empty string for nil, while `print-str`
+  ;; unconditionally adds spaces between arguments.
+  (apply str (replace {nil "nil"} xs)))
 
-(defn error [type message & {:as options}]
-  (throw (ex-info (make-message message) (merge {:type type} options))))
+(defn make-message [message]
+  (if (string? message) message (apply -str message)))
+
+(defn error [tag message & {:as options}]
+  (throw (ex-info (make-message message) (merge {:tag tag} options))))
 
 (defn warn [message]
   (binding [*out* *err*]
