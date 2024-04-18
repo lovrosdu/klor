@@ -19,18 +19,6 @@
        (not-empty x)
        (every? (some-fn usym? unpack-binder?) x)))
 
-(defn make-unpack-binder
-  ([bindings]
-   (make-unpack-binder bindings #{}))
-  ([bindings opts]
-   (reduce (fn [binder {:keys [name form position] :as binding}]
-             (assoc-inv
-              binder position
-              ;; Copied from `clojure.tools.analyzer.passes.emit-form`.
-              (if (:hygienic opts) (with-meta name (meta form)) form)
-              '_))
-           [] bindings)))
-
 (defn update-children* [ast children f]
   (-> ast
       (assoc :children children)

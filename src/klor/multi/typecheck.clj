@@ -6,8 +6,7 @@
    [klor.multi.types :refer [parse-type type-roles normalize-type render-type
                              substitute-roles]]
    [klor.multi.roles :refer [validate-roles]]
-   [klor.multi.util :refer [make-unpack-binder update-children*
-                            analysis-error]]))
+   [klor.multi.util :refer [update-children* analysis-error]]))
 
 (defn unpack-binder-matches-type? [binder {:keys [ctor elems] :as type}]
   (or (not (vector? binder))
@@ -176,8 +175,7 @@
       (with-type ast'' (normalize-type (assoc signature :aux mentions)) tenv))))
 
 (defmethod -typecheck :inst [tenv {:keys [form env var roles] :as ast}]
-  (let [{:keys [var meta]} var
-        {croles :roles :keys [signature]} (:klor/chor meta)]
+  (let [{croles :roles :keys [signature]} (:klor/chor (meta var))]
     (when-not (= (count croles) (count roles))
       (analysis-error ["`inst`'s number of roles doesn't match the "
                        "choreography's (" var "): got " roles ", expected "
@@ -287,8 +285,8 @@
                       form env))
     (with-type ast' type tenv)))
 
-(defmethod -typecheck :var [tenv {:keys [form env var meta] :as ast}]
-  (when (get meta :klor/chor)
+(defmethod -typecheck :var [tenv {:keys [form env var] :as ast}]
+  (when (contains? (meta var) :klor/chor)
     (analysis-error ["Cannot refer to a choreographic definition without "
                      "instantiating it: " var]
                     form env))
@@ -352,16 +350,15 @@
   ;; NOTE: We skip references to vars that are choreography definitions, as they
   ;; are technically of a polymorphic type which we do not represent in our
   ;; types for now.
-  (when-not (or (and (= op :var) (:klor/chor meta)))
-    (assert rtype (str "Missing type: " [local? form]))
-    (assert (try (parse-type (render-type rtype)) (catch Throwable t))
-            (str "Invalid type: " rtype ", " [local? form]))
-    (assert (not-empty rmentions)
-            (str "Missing role mentions: " [local? form]))
-    (when-not local?
-      (assert (:mask env) (str "Missing mask: " form))
-      (assert (every? (partial -sanity-check true) (vals (:locals env)))
-              (str "Incorrect locals: " (:locals env)))))
+  (assert rtype (str "Missing type: " [local? form]))
+  (assert (try (parse-type (render-type rtype)) (catch Throwable t))
+          (str "Invalid type: " rtype ", " [local? form]))
+  (assert (not-empty rmentions)
+          (str "Missing role mentions: " [local? form]))
+  (when-not local?
+    (assert (:mask env) (str "Missing mask: " form))
+    (assert (every? (partial -sanity-check true) (vals (:locals env)))
+            (str "Incorrect locals: " (:locals env))))
   true)
 
 (defn sanity-check

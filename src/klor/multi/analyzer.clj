@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [macroexpand-1])
   (:require
    [clojure.set :as set]
+   [clojure.string :as str]
    [clojure.tools.analyzer :as clj-analyzer]
    [clojure.tools.analyzer.env :as env]
    [clojure.tools.analyzer.jvm :as jvm-analyzer]
@@ -13,6 +14,13 @@
    [klor.multi.specials :refer [at local copy pack unpack* chor* inst]]
    [klor.multi.util :refer [usym? unpack-binder? analysis-error]]
    [klor.util :refer [error]]))
+
+;;; NOTE: The local environment's `:context` field is overriden with `:ctx/expr`
+;;; whenever an expression is *not* in tail position with respect to the
+;;; enclosing "recur block" (such as `loop`, `fn`, etc.). This means that the
+;;; expression cannot be a call to `recur`.
+
+;;; Special Operators
 
 (defn parse-at [[_ roles expr :as form] env]
   (when-not (= (count form) 3)
@@ -95,7 +103,7 @@
     {:op       :unpack
      :form     form
      :env      env
-     ;; NOTE: Preserve the binder but only for its shape and error reporting.
+     ;; NOTE: We preserve the binder but only for its shape and error reporting.
      ;; The bindings are given by `:bindings`.
      :binder   binder
      :bindings (vec bindings)
@@ -144,9 +152,6 @@
        :body      (clj-analyzer/analyze-body body env')
        :children  [:params :body]})))
 
-(defn parse-role-expr [[role & body :as form] env]
-  (assoc (parse-local `(~'local [~role] ~@body) env) :role? true))
-
 (defn parse-inst [[_ name roles :as form] env]
   (when-not (= (count form) 3)
     (analysis-error "`inst` needs exactly 2 arguments" form env))
@@ -155,30 +160,30 @@
   (when-not (and (vector? roles) (not-empty roles))
     (analysis-error ["`inst` needs a non-empty vector of roles: " roles]
                     form env))
-  (let [{var' :var :keys [op] :as var} (clj-analyzer/analyze-form name env)]
-    (when-not (= op :var)
-      (analysis-error ["Unknown var: " name] form env))
-    (when-not (contains? (meta var') :klor/chor)
+  (if-let [var (resolve-sym name env)]
+    (if (contains? (meta var) :klor/chor)
+      {:op       :inst
+       :form     form
+       :env      env
+       :name     name
+       :var      var
+       :roles    roles
+       :children []}
       (analysis-error [name " does not name a Klor choreography"] form env))
-    {:op       :inst
-     :form     form
-     :env      env
-     :var      var
-     :roles    roles
-     :children [:var]}))
+    (analysis-error ["Unknown var: " name] form env)))
 
 (defn special [var parser]
   {(:name (meta var)) parser
    var                parser})
 
 (def specials
-  (merge (special #'at #'parse-at)
-         (special #'local #'parse-local)
-         (special #'copy #'parse-copy)
-         (special #'pack #'parse-pack)
+  (merge (special #'at      #'parse-at)
+         (special #'local   #'parse-local)
+         (special #'copy    #'parse-copy)
+         (special #'pack    #'parse-pack)
          (special #'unpack* #'parse-unpack*)
-         (special #'chor* #'parse-chor*)
-         (special #'inst #'parse-inst)))
+         (special #'chor*   #'parse-chor*)
+         (special #'inst    #'parse-inst)))
 
 (defn get-special [form env]
   ;; We aim to be flexible and recognize Klor's special operators even when they
@@ -208,12 +213,48 @@
               (or (get specials op)
                   (get specials (resolve-sym op env)))))))
 
+;;; Syntax Sugar
+
+(defn role? [form {:keys [roles] :as env}]
+  (contains? roles form))
+
+(defn parse-role-expr [[role & body :as form] env]
+  (assoc (parse-local `(~'local [~role] ~@body) env) :sugar? true))
+
+(defn role-op [op form env]
+  (and (usym? form)
+       (let [roles (map symbol (str/split (name form) op))]
+         (and (= (count roles) 2) (every? #(role? % env) roles) roles))))
+
+(defn parse-copy-expr [roles [_ expr] env]
+  (assoc (parse-copy `(~'copy [~@roles] ~expr) env) :sugar? true))
+
+(defn parse-move-expr [[_ dst :as roles] [_ expr] env]
+  (assoc (parse-at `(~'at [~dst] (~'copy [~@roles] ~expr)) env) :sugar? true))
+
+(defn inline-inst-expr? [[name roles & exprs :as form] env]
+  (when-let [var (resolve-sym name env)]
+    (and (:klor/chor (meta var))
+         (vector? roles)
+         (every? #(role? % env) roles))))
+
+(defn parse-inline-inst-expr [[name roles & exprs :as form] env]
+  (assoc (jvm-analyzer/parse `((inst ~name ~roles) ~@exprs) env) :sugar? true))
+
+;;; Driver
+
 (defn parse [form env]
-  ((or (get-special form env)
-       (if (contains? (:roles env) (first form))
-         parse-role-expr
-         jvm-analyzer/parse))
-   form env))
+  (if-let [parser (get-special form env)]
+    (parser form env)
+    (if (role? (first form) env)
+      (parse-role-expr form env)
+      (if-let [roles (role-op #"=>" (first form) env)]
+        (parse-copy-expr roles form env)
+        (if-let [roles (role-op #"->" (first form) env)]
+          (parse-move-expr roles form env)
+          (if (inline-inst-expr? form env)
+            (parse-inline-inst-expr form env)
+            (jvm-analyzer/parse form env)))))))
 
 (defn macroexpand-1 [form env]
   ;; Klor's special operators have accompanying dummy Clojure macros purely for
@@ -279,7 +320,9 @@
     #'klor.multi.typecheck/sanity-check
 
     ;; Emit form.
-    #'klor.multi.emit-form/emit-form})
+    #'klor.multi.emit-form/emit-form
+    #_#'klor.multi.emit-form/emit-hygienic-form
+    #_#'klor.multi.emit-form/emit-sugar-form})
 
 (def run-passes
   (schedule default-passes))

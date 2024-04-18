@@ -3,30 +3,47 @@
             [clojure.tools.analyzer.passes.jvm.emit-form :as jvm-emit]
             [clojure.tools.analyzer.passes.uniquify :refer [uniquify-locals]]
             [klor.multi.types :refer [render-type]]
-            [klor.multi.util :refer [make-unpack-binder]]))
+            [klor.multi.util :refer [assoc-inv]]))
 
-(defmulti -emit-form (fn [{:keys [op]} _] op))
+(defn make-unpack-binder [bindings]
+  (reduce (fn [binder {:keys [name form position] :as binding}]
+            (assoc-inv
+             binder position
+             ;; Copied from `clojure.tools.analyzer.passes.emit-form`.
+             (with-meta name (meta form))
+             '_))
+          [] bindings))
 
-(defmethod -emit-form :at [{:keys [roles expr]} opts]
-  `(~'at ~roles ~(clj-emit/-emit-form* expr opts)))
+;;; NOTE: We use `mapv` throughout the code to force the evaluation of sequences
+;;; within the context of dynamic binding of `clj-emit/-emit-form*`.
 
-(defmethod -emit-form :mask [{:keys [roles body role?]} opts]
-  (if role?
+(defmulti -emit-form (fn [{:keys [op] :as ast} opts] op))
+
+(defmethod -emit-form :at [{:keys [roles expr sugar?]} opts]
+  (if (and (:sugar opts) sugar?)
+    (let [{expr' :expr :keys [op src dst]} expr]
+      (assert (= op :copy) "Expected a child `:copy` node when `sugar?` is set")
+      `(~(symbol (str src "->" dst)) ~(clj-emit/-emit-form* expr' opts)))
+    `(~'at ~roles ~(clj-emit/-emit-form* expr opts))))
+
+(defmethod -emit-form :mask [{:keys [roles body sugar?]} opts]
+  (if (and (:sugar opts) sugar?)
     `(~(first roles) ~(clj-emit/-emit-form* body opts))
     `(~'local ~roles ~(clj-emit/-emit-form* body opts))))
 
-(defmethod -emit-form :copy [{:keys [src dst expr]} opts]
-  `(~'copy [~src ~dst] ~(clj-emit/-emit-form* expr opts)))
+(defmethod -emit-form :copy [{:keys [src dst expr sugar?]} opts]
+  (if (and (:sugar opts) sugar?)
+    `(~(symbol (str src "=>" dst)) ~(clj-emit/-emit-form* expr opts))
+    `(~'copy [~src ~dst] ~(clj-emit/-emit-form* expr opts))))
 
 (defmethod -emit-form :pack [{:keys [exprs]} opts]
-  ;; NOTE: We use `mapv` to force the evaluation of the whole list while our
-  ;; dynamic binding of `clj-emit/-emit-form*` is active!
   `(~'pack ~@(mapv #(clj-emit/-emit-form* % opts) exprs)))
 
-(defmethod -emit-form :unpack [{:keys [bindings init body]} opts]
+(defmethod -emit-form :unpack [{:keys [binder bindings init body]} opts]
   ;; NOTE: Recreate the binder from the bindings in case we are emitting
-  ;; hygienically.
-  `(~'unpack* ~(make-unpack-binder bindings opts)
+  ;; hygienically, since the `:binder` field is *not* uniquified.
+  `(~'unpack*
+    ~(if (:hygienic opts) (make-unpack-binder bindings) binder)
     ~(clj-emit/-emit-form* init opts)
     ~(clj-emit/-emit-form* body opts)))
 
@@ -35,8 +52,15 @@
     ~(mapv #(clj-emit/-emit-form* % opts) params)
     ~(clj-emit/-emit-form* body opts)))
 
-(defmethod -emit-form :inst [{:keys [var roles]} opts]
-  `(~'inst ~(clj-emit/-emit-form* var opts) ~roles))
+(defmethod -emit-form :inst [{:keys [name roles]} opts]
+  `(~'inst ~name ~roles))
+
+(defmethod -emit-form :invoke [{:keys [fn args sugar?] :as ast} opts]
+  (if (and (:sugar opts) sugar?)
+    (let [{:keys [op name roles]} fn]
+      (assert (= op :inst) "Expected a child `:inst` node when `sugar?` is set")
+      `(~name ~roles ~@(mapv #(clj-emit/-emit-form* % opts) args)))
+    (jvm-emit/-emit-form ast opts)))
 
 (defmethod -emit-form :default [ast opts]
   (jvm-emit/-emit-form ast opts))
@@ -64,3 +88,8 @@
   {:pass-info {:walk :none :depends #{#'uniquify-locals} :compiler true}}
   [ast]
   (emit-form ast #{:hygienic}))
+
+(defn emit-sugar-form
+  {:pass-info {:walk :none :depends #{#'uniquify-locals} :compiler true}}
+  [ast]
+  (emit-form ast #{:sugar}))
