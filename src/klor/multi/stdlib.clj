@@ -1,7 +1,10 @@
 (ns klor.multi.stdlib
   (:require [klor.util :refer [error]]
-            [klor.multi.specials :refer [unpack* chor*]]
+            [klor.multi.specials :refer [at copy unpack* chor*]]
             [klor.multi.util :refer [usym? unpack-binder?]]))
+
+(defmacro move [[src dst] expr]
+  `(at [~dst] (copy [~src ~dst] ~expr)))
 
 (defmacro unpack [bindings & body]
   {:style/indent 1}
