@@ -157,10 +157,15 @@
         bindings (mapv (partial analyze-chor-param form env) params)
         locals (into (if name {name (dissoc-env local)} {})
                      (for [b bindings] [(:name b) (dissoc-env b)]))
-        env' (mmerge env {:locals locals})]
+        loop-id (gensym "loop_")
+        env' (into (mmerge env {:locals locals})
+                   {:context :ctx/return
+                    :loop-id loop-id
+                    :loop-locals (count params)})]
     (merge {:op   :chor
             :form form
-            :env  env}
+            :env  env
+            :loop-id loop-id}
            (and name {:local local})
            {:signature signature
             :params    bindings
