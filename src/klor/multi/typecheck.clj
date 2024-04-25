@@ -159,7 +159,7 @@
                       form env))
     (when-not (unpack-binder-matches-type? binder type)
       (analysis-error ["`unpack*`'s binder's shape doesn't match the type of "
-                       "its initializer: got " binder ", expected"
+                       "its initializer: got " binder ", expected "
                        (render-type type)]
                       form env))
     (let [;; Infer the type of each binding
@@ -174,9 +174,16 @@
       ;; Update the node's type
       (with-type ast''' (:rtype body) tenv))))
 
+(defn finalize-recur-mentions [mentions {:keys [op] :as ast}]
+  (case op
+    :recur (assoc ast :rmentions mentions)
+    ;; Do not descend into nodes that introduce new recur blocks
+    (:loop :fn-method :chor) ast
+    (update-children ast (partial finalize-recur-mentions mentions))))
+
 (defmethod -typecheck :chor
   [tenv {:keys [form env local signature params] :as ast}]
-  (let [{sparams :params :keys [ret]} signature]
+  (let [{sparams :params :keys [ret aux]} signature]
     (when-not (= (count params) (count sparams))
       (analysis-error ["`chor`'s parameter vector's shape doesn't match its "
                        "signature: got " (mapv :form params) ", expected "
@@ -200,7 +207,12 @@
                          "got " (render-type type) ", expected "
                          (render-type ret)]
                         form env))
-      (with-type ast'' (normalize-type (assoc signature :aux mentions)) tenv))))
+      (if (= aux :none)
+        ;; Infer the auxiliary roles from the mentions
+        (with-type (update ast'' :body #(finalize-recur-mentions mentions %))
+                   (normalize-type (assoc signature :aux mentions))
+                   tenv)
+        (with-type ast'' signature tenv)))))
 
 (defmethod -typecheck :inst [tenv {:keys [form env var roles] :as ast}]
   (let [{croles :roles :keys [signature]} (:klor/chor (meta var))]

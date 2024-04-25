@@ -25,24 +25,26 @@
 ;;;
 ;;;   A choreography type. Its `:params` key is a vector of types of the input
 ;;;   parameters. Its `:ret` key is the type of the return value. Its `:aux` key
-;;;   is the set of auxiliary roles.
+;;;   is the (possibly empty) set of auxiliary roles, or `:none` if it has been
+;;;   omitted.
 ;;;
-;;; The representation, in EBNF:
+;;; The representation, in EBNF (parentheses are used for grouping):
 ;;;
 ;;;   R ::= <unqualified-symbol>
 ;;;   T ::= {:ctor :agree :roles #{R*}}
 ;;;       | {:ctor :tuple :elems [T+]}
-;;;       | {:ctor :chor :params [T*] :ret T :aux #{R*}}
+;;;       | {:ctor :chor :params [T*] :ret T :aux (:none | #{R*})}
 ;;;
 ;;; A type's surface syntax is called its "typespec", which is also given in
-;;; terms of Clojure collections. In EBNF:
+;;; terms of Clojure collections. In EBNF (parentheses are used for lists):
 ;;;
 ;;;   R ::= <unqualified-symbol>
 ;;;   T ::= R              ; shorthand for a singleton agreement type
 ;;;       | #{R+}          ; an agreement type
 ;;;       | [T+]           ; a tuple type
-;;;       | (-> T* T)      ; a choreography type
-;;;       | (-> T* T | R*) ; a choreography type with auxiliary roles
+;;;       | (-> T* T)      ; a choreography type with omitted auxiliary roles
+;;;       | (-> T* T | 0)  ; a choreography type with empty auxiliary roles
+;;;       | (-> T* T | R+) ; a choreography type with explicit auxiliary roles
 
 (defn parse-error [msg tspec]
   (error :klor msg :tspec tspec))
@@ -80,21 +82,26 @@
           ret (last main)]
       (when (nil? ret)
         (parse-error ["A choreography type must have an output: " tspec] tspec))
-      (when (and pipe (empty? aux))
-        (parse-error ["A choreography type's auxiliary part cannot be "
-                      "empty: " tspec]
-                     tspec))
-      (when-not (every? usym? aux)
-        (parse-error ["A choreography type's auxiliary part can only contain "
-                      "roles: " tspec]
-                     tspec))
-      (when-not (or (empty? aux) (apply distinct? aux))
-        (parse-error ["A choreography type's auxiliary roles must be "
-                      "distinct: " tspec] tspec))
-      {:ctor   :chor
-       :params (mapv parse-type* params)
-       :ret    (parse-type* ret)
-       :aux    (set aux)})))
+      (when pipe
+        (when (empty? aux)
+          (parse-error ["A choreography type's auxiliary part cannot be "
+                        "empty: " tspec]
+                       tspec))
+        (when-not (every? (some-fn usym? #{0}) aux)
+          (parse-error ["A choreography type's auxiliary part can only contain "
+                        "roles or 0: " tspec]
+                       tspec))
+        (when (and (some #{0} aux) (not (= (count aux) 1)))
+          (parse-error ["A choreography type's auxiliary part cannot contain "
+                        "roles when it contains 0: " tspec]
+                       tspec))
+        (when-not (apply distinct? aux)
+          (parse-error ["A choreography type's auxiliary roles must be "
+                        "distinct: " tspec] tspec)))
+      (merge {:ctor   :chor
+              :params (mapv parse-type* params)
+              :ret    (parse-type* ret)
+              :aux    (if pipe (disj (set aux) 0) :none)}))))
 
 (defn parse-type [tspec]
   (cond
@@ -108,27 +115,33 @@
   (or (parse-type tspec)
       (parse-error ["Unrecognized type: " tspec] tspec)))
 
-(defn type-roles [{:keys [ctor roles elems ret params aux] :as type}]
+(defn type-roles [{:keys [ctor roles elems params ret aux] :as type}]
   (case ctor
     :agree roles
     :tuple (apply set/union (map type-roles elems))
-    :chor (apply set/union aux (map type-roles (cons ret params)))))
+    :chor (apply set/union (if (= aux :none) #{} aux)
+                 (map type-roles (cons ret params)))))
 
-(defn normalize-type [{:keys [ctor] :as type}]
+(defn normalize-type [{:keys [ctor aux] :as type}]
   (case ctor
     :agree type
     :tuple (update type :elems #(mapv normalize-type %))
-    :chor (let [type' (update type :params #(mapv normalize-type %))
-                type'' (update type' :ret normalize-type)
-                primary (type-roles (assoc type'' :aux nil))]
-            (update type'' :aux #(set/difference % primary)))))
+    :chor (if (= aux :none)
+            type
+            (let [type' (update type :params #(mapv normalize-type %))
+                  type'' (update type' :ret normalize-type)
+                  primary (type-roles (assoc type'' :aux #{}))]
+              (update type'' :aux #(set/difference % primary))))))
 
-(defn render-type [{:keys [ctor roles elems ret params aux] :as type}]
+(defn render-type [{:keys [ctor roles elems params ret aux] :as type}]
   (case ctor
     :agree (if (= (count roles) 1) (first roles) roles)
     :tuple (mapv render-type elems)
     :chor `(~'-> ~@(map render-type params) ~(render-type ret)
-            ~@(and (not-empty aux) `(~'| ~@aux)))))
+            ~@(cond
+                (= aux :none) nil
+                (empty? aux) `(~'| 0)
+                :else`(~'| ~@aux)))))
 
 (defn substitute-roles [type subs]
   (postwalk #(if (usym? %) (get subs % %) %) type))

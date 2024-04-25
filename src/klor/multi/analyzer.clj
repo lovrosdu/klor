@@ -9,6 +9,7 @@
    [clojure.tools.analyzer.passes :refer [schedule]]
    [clojure.tools.analyzer.passes elide-meta source-info constant-lifter]
    [clojure.tools.analyzer.utils :refer [ctx dissoc-env resolve-sym mmerge]]
+   [clojure.walk :refer [postwalk]]
    [klor.multi roles typecheck emit-form]
    [klor.multi.types :refer [parse-type normalize-type render-type]]
    [klor.multi.specials :refer [at local copy pack unpack* chor* inst]]
@@ -111,6 +112,9 @@
      :body     (clj-analyzer/analyze-body body env')
      :children [:bindings :init :body]}))
 
+(defn explicit-empty-aux [{:keys [aux] :as type}]
+  (assoc (postwalk #(if (= % :none) #{} %) type) :aux aux))
+
 (defn parse-chor-args [[_ & [name & _ :as args] :as form] env]
   (when-not (>= (count form) 3)
     (analysis-error "`chor*` needs at least 2 arguments" form env))
@@ -120,23 +124,23 @@
       (analysis-error ["`chor`'s name must be an unqualified symbol: " name]
                       form env))
     (when-not signature
-      (analysis-error ["Invalid `chor` signature: " tspec] form env))
+      (analysis-error ["`chor`'s signature is invalid: " tspec] form env))
     (when-not (= ctor :chor)
       (analysis-error ["`chor`'s signature must be a choreography type: " tspec]
                       form env))
-    (when-not (empty? aux)
-      (analysis-error ["`chor`'s signature must not specify auxiliary roles: "
-                       tspec]
+    (when (and name (= aux :none))
+      (analysis-error ["`chor`'s auxiliary roles must be explicitly specified "
+                       "when a self-reference name is used: " tspec]
                       form env))
     (let [normalized (normalize-type signature)]
       (when-not (= signature normalized)
-        (analysis-error ["`chor`'s signature must be normalized: " tspec
-                         " vs. " (render-type normalized)]
+        (analysis-error ["`chor`'s auxiliary part must be normalized: got "
+                         tspec ", expected " (render-type normalized)]
                         form env)))
     (when-not (vector? params)
       (analysis-error ["`chor` needs a vector of parameters: " params]
                       form env))
-    (list* name signature params body)))
+    (list* name (explicit-empty-aux signature) params body)))
 
 (defn analyze-chor-param [form env param]
   (when-not (usym? param)
