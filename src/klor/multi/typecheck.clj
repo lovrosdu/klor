@@ -57,12 +57,18 @@
 ;;; easier to follow, but the local binding map of each AST node (under
 ;;; `[:env :locals]`) is updated with the above type information as well.
 ;;;
-;;; The typing environment is similar to the local environment. Its `:locals`
-;;; key is a map that maps unqualified symbols (the name of a local binding, as
-;;; it appears in the source, i.e. the `:form` field of a `:binding` node) to
-;;; maps with the `:rtype` and `:rmentions` keys. Its `:recur-ret` and
-;;; `:recur-params` store the type of the return value and a vector of types of
-;;; the parameters of a call to `recur` in the current context, respectively.
+;;; The typing environment is similar to the local environment:
+;;;
+;;; - Its `:locals` key is a map that maps unqualified symbols (the name of a
+;;;   local binding, as it appears in the source, i.e. the `:form` field of a
+;;;   `:binding` node) to maps with the `:rtype` and `:rmentions` keys.
+;;;
+;;; - Its `:recur-params` and `:recur-ret` keys store a vector of types of the
+;;;   parameters of a call to `recur` in the current context, and the type of
+;;;   its return value, respectively.
+;;;
+;;; - Its `:fn-type` key stores the agreement type of the `fn` currently being
+;;;   type checked.
 ;;;
 ;;; The type checker uses a bidirectional type checking algorithm: some types
 ;;; are inferred (sometimes with the help of user-provided type annotations),
@@ -75,14 +81,22 @@
   [ast]
   (-typecheck {:locals {}} ast))
 
-(defn with-locals [{:keys [env] :as ast} {:keys [locals] :as tenv}]
+(defn with-locals
+  {:style/indent 0}
+  [{:keys [env] :as ast} {:keys [locals] :as tenv}]
   (let [k1 (set (keys locals))
         k2 (set (keys (:locals env)))]
     (assert (= k1 k2) (str "The typing and local environments have differing "
                            "keys: got " k1 ", expected " k2)))
   (update-in ast [:env :locals] mmerge locals))
 
-(defn with-type [ast type tenv]
+(defn with-type
+  {:style/indent 0}
+  [{:keys [form env] :as ast} type {:keys [fn-type] :as tenv}]
+  (when (and fn-type (not= type fn-type))
+    (analysis-error ["`fn`'s body cannot mention types different from its own "
+                     "agreement type: " (render-type type)]
+                    form env))
   (let [roles (type-roles type)
         mentions (apply set/union roles (map :rmentions (children ast)))]
     (assoc (with-locals ast tenv) :rtype type :rmentions mentions)))
@@ -92,8 +106,11 @@
           (for [{:keys [form] :as b} bindings]
             [form (select-keys b [:rtype :rmentions])])))
 
-(defn add-recur-block [tenv ret params]
-  (assoc tenv :recur-ret ret :recur-params params))
+(defn add-recur-block [tenv params ret]
+  (assoc tenv :recur-params params :recur-ret ret))
+
+(defn add-fn-type [tenv type]
+  (assoc tenv :fn-type type))
 
 (defn -typecheck*
   ([tenv ast]
@@ -174,7 +191,7 @@
           ;; Update the typing environment
           tenv' (extend-tenv tenv (concat (and local [local']) params'))
           ;; Add a recur block
-          tenv'' (add-recur-block tenv' ret sparams)
+          tenv'' (add-recur-block tenv' sparams ret)
           ;; Typecheck the body
           {:keys [body] :as ast''} (-typecheck* tenv'' ast' [:body])
           {type :rtype mentions :rmentions} body]
@@ -215,9 +232,11 @@
         ;; Update the typing environment
         tenv' (extend-tenv tenv params')
         ;; Add a recur block
-        tenv'' (add-recur-block tenv' ptype (repeat (count params) ptype))
+        tenv'' (add-recur-block tenv' (repeat (count params) ptype) ptype)
+        ;; Restrict the body to only ever mention a specific agreement type
+        tenv''' (add-fn-type tenv'' ptype)
         ;; Typecheck the body
-        {:keys [body] :as ast''} (-typecheck* tenv'' ast' [:body])
+        {:keys [body] :as ast''} (-typecheck* tenv''' ast' [:body])
         {:keys [ctor] :as type} (:rtype body)]
     (when-not (= type ptype)
       (analysis-error ["`fn`'s return type must be " (render-type ptype)]
@@ -329,7 +348,7 @@
     (with-type ast'' (:rtype body) tenv)))
 
 (defmethod -typecheck :recur
-  [{:keys [recur-ret recur-params] :as tenv} {:keys [form env] :as ast}]
+  [{:keys [recur-params recur-ret] :as tenv} {:keys [form env] :as ast}]
   (let [{:keys [exprs] :as ast'} (-typecheck* tenv ast [:exprs])]
     (when-let [[expr param] (first (filter (fn [[e p]] (not= (:rtype e) p))
                                            (map vector exprs recur-params)))]
