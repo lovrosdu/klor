@@ -9,9 +9,8 @@
    [clojure.tools.analyzer.passes :refer [schedule]]
    [clojure.tools.analyzer.passes elide-meta source-info constant-lifter]
    [clojure.tools.analyzer.utils :refer [ctx dissoc-env resolve-sym mmerge]]
-   [clojure.walk :refer [postwalk]]
    [klor.multi roles typecheck emit-form]
-   [klor.multi.types :refer [parse-type normalize-type render-type]]
+   [klor.multi.types :refer [parse-type map-type normalize-type render-type]]
    [klor.multi.specials :refer [at local copy pack unpack* chor* inst]]
    [klor.multi.util :refer [usym? unpack-binder? analysis-error]]
    [klor.util :refer [error]]))
@@ -112,8 +111,13 @@
      :body     (clj-analyzer/analyze-body body env')
      :children [:bindings :init :body]}))
 
-(defn explicit-empty-aux [{:keys [aux] :as type}]
-  (assoc (postwalk #(if (= % :none) #{} %) type) :aux aux))
+(defn adjust-chor-signature [{:keys [aux] :as type}]
+  (-> (fn [{:keys [ctor] :as type}]
+        (case ctor
+          (:agree :tuple) type
+          :chor (update type :aux #(if (= % :none) #{} %))))
+      (map-type type)
+      (assoc :aux aux)))
 
 (defn parse-chor-args [[_ & [name & _ :as args] :as form] env]
   (when-not (>= (count form) 3)
@@ -140,7 +144,7 @@
     (when-not (vector? params)
       (analysis-error ["`chor` needs a vector of parameters: " params]
                       form env))
-    (list* name (explicit-empty-aux signature) params body)))
+    (list* name (adjust-chor-signature signature) params body)))
 
 (defn analyze-chor-param [form env param]
   (when-not (usym? param)

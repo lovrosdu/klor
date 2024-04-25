@@ -1,6 +1,5 @@
 (ns klor.multi.types
   (:require [clojure.set :as set]
-            [clojure.walk :refer [postwalk]]
             [klor.multi.util :refer [usym?]]
             [klor.util :refer [error]]))
 
@@ -115,33 +114,53 @@
   (or (parse-type tspec)
       (parse-error ["Unrecognized type: " tspec] tspec)))
 
-(defn type-roles [{:keys [ctor roles elems params ret aux] :as type}]
+(defn map-type [f {:keys [ctor] :as type}]
   (case ctor
-    :agree roles
-    :tuple (apply set/union (map type-roles elems))
-    :chor (apply set/union (if (= aux :none) #{} aux)
-                 (map type-roles (cons ret params)))))
+    :agree (f type)
+    :tuple (f (update type :elems #(mapv (partial map-type f) %)))
+    :chor (-> (update type :params #(mapv (partial map-type f) %))
+              (update :ret (partial map-type f))
+              f)))
 
-(defn normalize-type [{:keys [ctor aux] :as type}]
-  (case ctor
-    :agree type
-    :tuple (update type :elems #(mapv normalize-type %))
-    :chor (if (= aux :none)
-            type
-            (let [type' (update type :params #(mapv normalize-type %))
-                  type'' (update type' :ret normalize-type)
-                  primary (type-roles (assoc type'' :aux #{}))]
-              (update type'' :aux #(set/difference % primary))))))
+(defn type-roles [type]
+  (-> (fn [{:keys [ctor] :as type}]
+        (case ctor
+          :agree (:roles type)
+          :tuple (apply set/union (:elems type))
+          :chor (let [{:keys [params ret aux]} type]
+                  (apply set/union (if (= aux :none) #{} aux) ret params))))
+      (map-type type)))
 
-(defn render-type [{:keys [ctor roles elems params ret aux] :as type}]
-  (case ctor
-    :agree (if (= (count roles) 1) (first roles) roles)
-    :tuple (mapv render-type elems)
-    :chor `(~'-> ~@(map render-type params) ~(render-type ret)
-            ~@(cond
-                (= aux :none) nil
-                (empty? aux) `(~'| 0)
-                :else`(~'| ~@aux)))))
+(defn normalize-type [type]
+  (-> (fn [{:keys [ctor] :as type}]
+        (case ctor
+          (:agree :tuple) type
+          :chor (if (not= (:aux type) :none)
+                  (let [main (type-roles (assoc type :aux #{}))]
+                    (update type :aux #(set/difference % main)))
+                  type)))
+      (map-type type)))
+
+(defn render-type [type]
+  (-> (fn [{:keys [ctor] :as type}]
+        (case ctor
+          :agree (let [{:keys [roles]} type]
+                   (if (= (count roles) 1) (first roles) roles))
+          :tuple (:elems type)
+          :chor (let [{:keys [params ret aux]} type]
+                  `(~'-> ~@params ~ret
+                    ~@(cond (= aux :none) nil
+                            (empty? aux) `(~'| 0)
+                            :else `(~'| ~@aux))))))
+      (map-type type)))
 
 (defn substitute-roles [type subs]
-  (postwalk #(if (usym? %) (get subs % %) %) type))
+  (let [sub #(get subs % %)]
+    (-> (fn [{:keys [ctor] :as type}]
+          (case ctor
+            :agree (update type :roles #(set (map sub %)))
+            :tuple type
+            :chor (if (not= (:aux type) :none)
+                    (update type :aux #(set (replace subs %)))
+                    type)))
+        (map-type type))))
