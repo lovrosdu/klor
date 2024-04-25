@@ -348,7 +348,7 @@
     #'klor.multi.typecheck/sanity-check
 
     ;; Emit form.
-    #'klor.multi.emit-form/emit-form
+    #_#'klor.multi.emit-form/emit-form
     #_#'klor.multi.emit-form/emit-hygienic-form
     #_#'klor.multi.emit-form/emit-sugar-form})
 
