@@ -8,10 +8,12 @@
    [clojure.tools.analyzer.jvm :as jvm-analyzer]
    [clojure.tools.analyzer.passes :refer [schedule]]
    [clojure.tools.analyzer.passes.constant-lifter]
+   [clojure.tools.analyzer.passes.jvm.emit-form]
    [clojure.tools.analyzer.utils :refer [ctx dissoc-env resolve-sym mmerge]]
    [klor.multi.emit-form]
    [klor.multi.types :refer [parse-type map-type normalize-type render-type]]
    [klor.multi.typecheck]
+   [klor.multi.projection :as proj]
    [klor.multi.specials :refer [at local copy pack unpack* chor* inst]]
    [klor.multi.util :refer [usym? unpack-binder? analysis-error]]
    [klor.util :refer [error]]))
@@ -394,3 +396,22 @@
                :else #{emit})
         passes-opts {:emit-form emit}]
     (analyze form :run-passes emit-passes* :passes-opts passes-opts opts)))
+
+(def project-passes
+  #{#'klor.multi.projection/cleanup
+    #'clojure.tools.analyzer.passes.jvm.emit-form/emit-form})
+
+(def project-passes*
+  (schedule project-passes))
+
+(defn project [ast & {:keys [cleanup] :as opts}]
+  (-> (proj/project ast (select-keys opts [:role :defchor?]))
+      (jvm-analyzer/analyze
+       (jvm-analyzer/empty-env)
+       {:bindings {#'jvm-analyzer/run-passes project-passes*}
+        :passes-opts {:cleanup {:style (or cleanup :aggressive)}}})))
+
+(defn analyze+project [form & {:keys [env] :as opts}]
+  (let [{:keys [roles]} env
+        ast (analyze form opts)]
+    (zipmap roles (map #(project ast (merge opts {:role %})) roles))))

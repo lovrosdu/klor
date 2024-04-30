@@ -1,6 +1,6 @@
 (ns klor.multi.macros
   (:require [clojure.set :as set]
-            [klor.multi.analyzer :refer [analyze adjust-chor-signature]]
+            [klor.multi.analyzer :refer [analyze adjust-chor-signature project]]
             [klor.multi.types :refer [parse-type type-roles render-type
                                       substitute-roles]]
             [klor.multi.stdlib :refer [chor]]
@@ -18,7 +18,7 @@
       ;; done, due to possibility of recursion and self-reference.
       adjust-chor-signature))
 
-(defn signature-changed? [roles' signature' roles signature]
+(defn defchor-signature-changed? [roles' signature' roles signature]
   (and roles' roles
        (or (not= (count roles') (count roles))
            (not= (substitute-roles signature' (zipmap roles' (range)))
@@ -39,7 +39,7 @@
         var (intern *ns* name)
         m (meta var)
         {roles' :roles signature' :signature} (:klor/chor m)
-        ;; Fill in the aux set for the new signature, if unspecified
+        ;; Set the aux sets within the new signature, if unspecified
         signature (if-let [signature (parse-type tspec)]
                     (adjust-defchor-signature roles signature)
                     (error :klor ["Invalid `defchor` signature: " tspec]))]
@@ -48,20 +48,23 @@
             m' {:roles roles :signature signature}
             _ (alter-meta! var merge {:klor/chor m'})]
         (when (not (empty? def))
-          (let [;; Build and analyze the chor
+          (let [;; Build, analyze and project the chor
                 chor `(chor ~(render-type signature) ~params ~@body)
-                {mentions :rmentions :as ast} (analyze chor {:env {:roles roles}})]
+                ast (analyze chor {:env {:roles roles}})
+                mentions (:rmentions (:body ast))
+                projs (map #(project ast {:role % :defchor? true}) roles)]
             (when-let [diff (not-empty (set/difference (set roles) mentions))]
-              (warn ["Some role parameters are never used: " diff]))))
-        (when (signature-changed? roles' signature' roles signature)
-          (warn ["Signature of " var " changed:\n"
-                 "  was " (render-signature roles' signature') ",\n"
-                 "  is " (render-signature roles signature) ";\n"
-                 "make sure to recompile dependencies"]))
-        ;; NOTE: Reattach the metadata to the var (via the symbol) because `def`
-        ;; clears it. Also attach the metadata to the map for convenience.
-        `(def ~(vary-meta name #(merge % `{:klor/chor '~m'}))
-           ~(with-meta {:projections :todo} `{:klor/chor '~m'})))
+              (warn ["Some role parameters are never used: " diff]))
+            (when (defchor-signature-changed? roles' signature' roles signature)
+              (warn ["Signature of " var " changed:\n"
+                     "  was " (render-signature roles' signature') ",\n"
+                     "  is " (render-signature roles signature) ";\n"
+                     "make sure to recompile dependencies"]))
+            ;; NOTE: Reattach the metadata to the var (via the symbol) because
+            ;; `def` clears it. Also attach the metadata to the vector for
+            ;; convenience.
+            `(def ~(vary-meta name #(merge % `{:klor/chor '~m'}))
+               ~(with-meta (vec projs) `{:klor/chor '~m'})))))
       (catch Exception e
         ;; Roll back the metadata or remove the var if the analysis failed
         (if exists?
