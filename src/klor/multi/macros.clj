@@ -17,7 +17,12 @@
            (not= (substitute-roles signature' (zipmap roles' (range)))
                  (substitute-roles signature (zipmap roles (range)))))))
 
-(defmacro defchor [name roles tspec & [params & body :as def]]
+(defn render-signature [roles signature]
+  `(~'forall ~roles ~(render-type signature)))
+
+(defmacro defchor
+  {:arglists '([name roles tspec] [name roles tspec & params & body])}
+  [name roles tspec & [params & body :as def]]
   (when-not (and (vector? roles) (not-empty roles) (every? usym? roles)
                  (apply distinct? roles))
     (error :klor ["`defchor`'s roles must be given as a vector of distinct "
@@ -40,9 +45,10 @@
             (when-let [diff (not-empty (set/difference (set roles) mentions))]
               (warn ["Some role parameters are never used: " diff]))))
         (when (signature-changed? roles' signature' roles signature)
-          (warn ["Signature of " var " changed: was " (render-type signature')
-                 ", is " (render-type signature) "; make sure to recompile "
-                 "dependencies"]))
+          (warn ["Signature of " var " changed:\n"
+                 "  was " (render-signature roles' signature') ",\n"
+                 "  is " (render-signature roles signature) ";\n"
+                 "make sure to recompile dependencies"]))
         ;; NOTE: Reattach the metadata to the var (via the symbol) because `def`
         ;; clears it. Also attach the metadata to the map for convenience.
         `(def ~(vary-meta name #(merge % `{:klor/chor '~m'}))
