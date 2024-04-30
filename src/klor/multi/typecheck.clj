@@ -3,6 +3,7 @@
    [clojure.set :as set]
    [clojure.tools.analyzer.ast :refer [children update-children]]
    [clojure.tools.analyzer.utils :refer [mmerge]]
+   [clojure.tools.analyzer.passes.jvm.validate :as jvm-validate]
    [klor.multi.types :refer [parse-type type-roles normalize-type render-type
                              substitute-roles]]
    [klor.multi.roles :refer [validate-roles]]
@@ -77,7 +78,8 @@
 (defmulti -typecheck (fn [tenv {:keys [op] :as ast}] op))
 
 (defn typecheck
-  {:pass-info {:walk :none :depends #{#'validate-roles #'propagate-masks}}}
+  {:pass-info {:walk :none :depends #{#'validate-roles #'propagate-masks
+                                      #'jvm-validate/validate}}}
   [ast]
   (-typecheck {:locals {}} ast))
 
@@ -269,7 +271,7 @@
       :agree
       (if-let [arg (first (filter #(not= (:rtype %) type) args))]
         (analysis-error ["Invocation argument must be of the same agreement "
-                         "type as its non-choreography operator: got "
+                         "type as its non-choreographic operator: got "
                          (:form arg) " of type " (render-type (:rtype arg))
                          ", expected " (render-type type)]
                         form env)
@@ -338,6 +340,39 @@
 
 (defmethod -typecheck :the-var [tenv {:keys [env] :as ast}]
   (with-type ast {:ctor :agree :roles (:mask env)} tenv))
+
+(defn lifted-type [{:keys [mask] :as env}]
+  {:ctor :agree :roles mask})
+
+(defn typecheck-agree-op
+  ([tenv ast type]
+   (typecheck-agree-op tenv ast type (children ast)))
+  ([tenv {:keys [form env] :as ast} type args]
+   (if-let [arg (first (filter #(not= (:rtype %) type) args))]
+     (analysis-error ["Argument must be of the same agreement type as its "
+                      "non-choreographic operator: got " (:form arg) " of type "
+                      (render-type (:rtype arg)) ", expected "
+                      (render-type type)]
+                     form env)
+     (with-type ast type tenv))))
+
+(defmethod -typecheck :new [tenv {:keys [env] :as ast}]
+  (typecheck-agree-op tenv (-typecheck* tenv ast) (lifted-type env)))
+
+(defmethod -typecheck :host-interop [tenv {:keys [env] :as ast}]
+  (typecheck-agree-op tenv (-typecheck* tenv ast) (lifted-type env)))
+
+(defmethod -typecheck :instance-field [tenv {:keys [env] :as ast}]
+  (typecheck-agree-op tenv (-typecheck* tenv ast) (lifted-type env)))
+
+(defmethod -typecheck :instance-call [tenv {:keys [env] :as ast}]
+  (typecheck-agree-op tenv (-typecheck* tenv ast) (lifted-type env)))
+
+(defmethod -typecheck :static-field [tenv {:keys [env] :as ast}]
+  (with-type ast (lifted-type env) tenv))
+
+(defmethod -typecheck :static-call [tenv {:keys [env] :as ast}]
+  (typecheck-agree-op tenv (-typecheck* tenv ast) (lifted-type env)))
 
 (defmethod -typecheck :do [tenv ast]
   (let [{:keys [ret] :as ast'} (-typecheck* tenv ast)]

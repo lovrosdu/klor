@@ -15,10 +15,17 @@
    [klor.multi.util :refer [usym? unpack-binder? analysis-error]]
    [klor.util :refer [error]]))
 
-;;; NOTE: The local environment's `:context` field is overriden with `:ctx/expr`
-;;; whenever an expression is *not* in tail position with respect to the
-;;; enclosing "recur block" (such as `loop`, `fn`, etc.). This means that the
-;;; expression cannot be a call to `recur`.
+;;; NOTE: The local environment's `:context` field is explicitly overriden with
+;;; `:ctx/expr` whenever an expression is *not* in tail position with respect to
+;;; the enclosing "recur block" (such as `loop`, `fn`, etc.), meaning that it
+;;; cannot be a call to `recur`. Otherwise, `:context` is normally unchanged and
+;;; inherited from the parent environment.
+
+;;; NOTE: `clojure.tools.analyzer.jvm/macroexpand-1` expands namespaced symbols
+;;; into host forms when the namespace names a statically-known class, e.g.
+;;; `<ns>/<name>` expands to `(. <ns> <name>)` when `<ns>` names a class.
+;;; Otherwise, the symbol is analyzed as usual and might produce a
+;;; `:maybe-host-form` node if it doesn't resolve to a var.
 
 ;;; Special Operators
 
@@ -301,41 +308,44 @@
     ;; Propagate constness to vectors, maps and sets of constants.
     #_#'clojure.tools.analyzer.passes.constant-lifter/constant-lift
 
-    ;; Rename all local bindings to fresh names. Requires
-    ;; `:uniquify/uniquify-env` to be true within the pass options in order to
-    ;; also apply the same changes to the local environments.
+    ;; Rename the `:name` field of all all `:binding` and `:local` nodes to
+    ;; fresh names.
+    ;;
+    ;; Requires `:uniquify/uniquify-env` to be true within the pass options in
+    ;; order to also apply the same changes to the `:binding` nodes in local
+    ;; environments (under `[:env :locals]`). However, keys of the local
+    ;; environment are never touched and remain the original names (stored under
+    ;; the `:form` field).
     #_#'clojure.tools.analyzer.passes.uniquify/uniquify-locals
 
     ;; Elide superfluous `:do`, `:let` and `:try` nodes when possible.
     #_#'clojure.tools.analyzer.passes.trim/trim
 
     ;; Refine `:host-field`, `:host-call` and `:host-interop` nodes to
-    ;; `:instance-field`, `:instance-call`, `:static-field` and `:static-call`,
-    ;; when possible. Refine `:var` and `:maybe-class` nodes to `:const`, when
-    ;; possible.
+    ;; `:instance-field`, `:instance-call`, `:static-field` and `:static-call`
+    ;; when possible. This happens when the class can be determined statically.
+    ;; In that case, the named field or method must exist otherwise an error is
+    ;; thrown. If the class cannot be determined statically, the node is
+    ;; kept as or converted to a `:host-interop` node.
+    ;;
+    ;; Also refine `:var` and `:maybe-class` nodes to `:const` when possible.
     #_#'clojure.tools.analyzer.passes.jvm.analyze-host-expr/analyze-host-expr
 
     ;; Refine `:invoke` nodes to `:keyword-invoke`, `:prim-invoke`,
-    ;; `:protocol-invoke` and `:instance?` nodes, when possible.
+    ;; `:protocol-invoke` and `:instance?` nodes when possible.
     #_#'clojure.tools.analyzer.passes.jvm.classify-invoke/classify-invoke
 
-    ;; Throw if `:maybe-class` or `:maybe-host-form` nodes are encountered. Such
-    ;; nodes are produced for non-namespaced and namespaced symbols that do not
-    ;; resolve to a var, respectively.
+    ;; Validate a number of JVM-specific things. Most importantly, throw on
+    ;; encountering `:maybe-class` or `:maybe-host-form` nodes. Such nodes are
+    ;; produced for non-namespaced and namespaced symbols (respectively) that do
+    ;; not resolve to a var or a class.
     ;;
-    ;; Note two things:
-    ;;
-    ;; (1) `clojure.tools.analyzer.jvm/macroexpand-1` macroexpands namespaced
-    ;; symbols such as `<ns>/<name>` into `(. <ns> <name>)` when `<ns>` names a
-    ;; class. If it doesn't, the symbol is analyzed as usual and might produce
-    ;; `:maybe-host-form`, however, `clojure.tools.analyzer.jvm` has no
-    ;; particular handling for that node in any of its passes.
-    ;;
-    ;; (2) This pass depends on
+    ;; This pass depends on
     ;; `clojure.tools.analyzer.passes.jvm.analyze-host-expr/analyze-host-expr`
-    ;; which refines `:maybe-class` to `:const` (with a `:type` of `:class`)
-    ;; when possible.
-    #_#'clojure.tools.analyzer.passes.jvm.validate/validate
+    ;; which first performs a number of refinements when possible. Other than
+    ;; that, `clojure.tools.analyzer.jvm` has no substantial handling for the
+    ;; above two nodes in any of its passes and always considers them an error.
+    #'clojure.tools.analyzer.passes.jvm.validate/validate
 
     ;; Throw on invalid role applications.
     #'klor.multi.roles/validate-roles
