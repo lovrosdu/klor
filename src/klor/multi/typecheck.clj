@@ -356,6 +356,27 @@
                      form env)
      (with-type ast type tenv))))
 
+(defmethod -typecheck :case [tenv {:keys [form env] :as ast}]
+  (let [{:keys [test tests thens default] :as ast'} (-typecheck* tenv ast)
+        branches (concat thens [default])]
+    (when-not (apply = (map :rtype (cons test tests)))
+      (analysis-error ["`case`'s test expression and constants must all be of "
+                       "the same agreement type"]
+                      form env))
+    (when-not (apply = (map :rtype branches))
+      (analysis-error ["`case`'s branches must all be of the same agreement "
+                       "type"]
+                      form env))
+    (with-type ast' (:rtype (first branches)) tenv)))
+
+(defmethod -typecheck :case-test [tenv ast]
+  (let [{:keys [test] :as ast'} (-typecheck* tenv ast)]
+    (with-type ast' (:rtype test) tenv)))
+
+(defmethod -typecheck :case-then [tenv ast]
+  (let [{:keys [then] :as ast'} (-typecheck* tenv ast)]
+    (with-type ast' (:rtype then) tenv)))
+
 (defmethod -typecheck :new [tenv {:keys [env] :as ast}]
   (typecheck-agree-op tenv (-typecheck* tenv ast) (lifted-type env)))
 
