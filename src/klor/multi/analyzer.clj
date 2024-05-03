@@ -221,10 +221,11 @@
          (special #'inst    #'parse-inst)))
 
 (defn get-special [form env]
-  ;; We aim to be flexible and recognize Klor's special operators even when they
-  ;; haven't been imported into the current namespace, for convenience. Assuming
-  ;; that the operator position is a symbol, we first check if it names a Klor
-  ;; special operator, unqualified.
+  ;; Assuming that the operator position is a symbol, we first check if it names
+  ;; a special operator by name, unqualified. This is both for
+  ;; convenience (since it doesn't require the corresponding Klor macro to be
+  ;; imported into the current namespace) and to mimic how special operators
+  ;; normally behave (namely, that they cannot be shadowed).
   ;;
   ;; We then try to check if the symbol resolves to one of Klor's specials'
   ;; vars, which allows us to correctly handle cases when the symbol is fully
@@ -278,14 +279,18 @@
 
 ;;; Driver
 
-(defn parse [form env]
+(defn parse [[op & _ :as form] env]
   (if-let [parser (get-special form env)]
     (parser form env)
-    (if (role? (first form) env)
+    ;; The syntax sugar can be thought of as a macro, but it also has the
+    ;; characteristic of a special operator in that it cannot be shadowed by
+    ;; local bindings. For that reason we implement it as part of the parsing
+    ;; phase and not macroexpansion.
+    (if (role? op env)
       (parse-role-expr form env)
-      (if-let [roles (role-op #"=>" (first form) env)]
+      (if-let [roles (role-op #"=>" op env)]
         (parse-copy-expr roles form env)
-        (if-let [roles (role-op #"->" (first form) env)]
+        (if-let [roles (role-op #"->" op env)]
           (parse-move-expr roles form env)
           (if (inline-inst-expr? form env)
             (parse-inline-inst-expr form env)
