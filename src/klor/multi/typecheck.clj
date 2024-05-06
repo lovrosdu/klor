@@ -89,6 +89,12 @@
   ([tenv ast children]
    (update-children* ast children (partial -typecheck tenv))))
 
+(defn type= [x y & more]
+  (apply = x y more))
+
+(defn lifted-type [{:keys [mask] :as env}]
+  {:ctor :agree :roles mask})
+
 (defn with-locals
   {:style/indent 0}
   [{:keys [env] :as ast} {:keys [locals] :as tenv}]
@@ -101,7 +107,7 @@
 (defn with-type
   {:style/indent 0}
   [{:keys [form env] :as ast} type {:keys [fn-type] :as tenv}]
-  (when (and fn-type (not= type fn-type))
+  (when (and fn-type (not (type= type fn-type)))
     (analysis-error ["`fn`'s body cannot mention types different from its own "
                      "agreement type: " (render-type type)]
                     form env))
@@ -119,9 +125,6 @@
 
 (defn add-fn-type [tenv type]
   (assoc tenv :fn-type type))
-
-(defn lifted-type [{:keys [mask] :as env}]
-  {:ctor :agree :roles mask})
 
 ;;; Klor-specific nodes
 
@@ -209,7 +212,7 @@
           ;; Typecheck the body
           {:keys [body] :as ast''} (-typecheck* tenv'' ast' [:body])
           {type :rtype mentions :rmentions} body]
-      (when-not (= ret type)
+      (when-not (type= ret type)
         (analysis-error ["`chor`'s return type doesn't match its signature: "
                          "got " (render-type type) ", expected "
                          (render-type ret)]
@@ -259,7 +262,7 @@
       (analysis-error ["`if`'s condition must be of agreement type: "
                        (render-type type)]
                       form env))
-    (when (not= type1 type2)
+    (when-not (type= type1 type2)
       (analysis-error ["`if`'s branches must be of the same type: "
                        (render-type type1) " vs. " (render-type type2)]
                       form env))
@@ -268,11 +271,11 @@
 (defmethod -typecheck :case [tenv {:keys [form env] :as ast}]
   (let [{:keys [test tests thens default] :as ast'} (-typecheck* tenv ast)
         branches (concat thens [default])]
-    (when-not (apply = (map :rtype (cons test tests)))
+    (when-not (apply type= (map :rtype (cons test tests)))
       (analysis-error ["`case`'s test expression and constants must all be of "
                        "the same agreement type"]
                       form env))
-    (when-not (apply = (map :rtype branches))
+    (when-not (apply type= (map :rtype branches))
       (analysis-error ["`case`'s branches must all be of the same agreement "
                        "type"]
                       form env))
@@ -315,7 +318,7 @@
         ;; Typecheck the body
         {:keys [body] :as ast''} (-typecheck* tenv''' ast' [:body])
         {:keys [ctor] :as type} (:rtype body)]
-    (when-not (= type ltype)
+    (when-not (type= type ltype)
       (analysis-error ["`fn`'s return type must be " (render-type ltype)]
                       form env))
     (with-type ast'' type tenv)))
