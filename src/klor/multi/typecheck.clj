@@ -92,6 +92,10 @@
 (defn type= [x y & more]
   (apply = x y more))
 
+(defn subtype? [{ctor1 :ctor roles1 :roles :as t1}
+                {ctor2 :ctor roles2 :roles :as t2}]
+  (and (= ctor1 :agree) (= ctor2 :agree) (set/superset? roles1 roles2)))
+
 (defn lifted-type [{:keys [mask] :as env}]
   {:ctor :agree :roles mask})
 
@@ -322,20 +326,22 @@
             "Expected `fn`'s return type to be equal to its own type")
     (with-type ast'' type tenv)))
 
-(defn type-mismatch [types asts]
-  (first (filter (fn [[t a]] (not= (:rtype a) t)) (map vector types asts))))
+(defn type-mismatch [types asts & {:as opts}]
+  (let [check (if (:subtype? opts) subtype? type=)]
+    (first (filter (fn [[t a]] (not (check (:rtype a) t)))
+                   (map vector types asts)))))
 
-(defn type-mismatch-1 [type asts]
-  (second (type-mismatch (repeat type) asts)))
+(defn type-mismatch-1 [type asts & {:as opts}]
+  (second (type-mismatch (repeat type) asts opts)))
 
 (defn typecheck-homogeneous-op
   ([tenv ast type]
    (typecheck-homogeneous-op tenv ast type (children ast)))
   ([tenv {:keys [form env] :as ast} type args]
-   (if-let [arg (type-mismatch-1 type args)]
-     (analysis-error ["Argument must be of the same agreement type as its "
-                      "non-choreographic operator: got " (:form arg) " of type "
-                      (render-type (:rtype arg)) ", expected "
+   (if-let [arg (type-mismatch-1 type args :subtype? true)]
+     (analysis-error ["Argument must be an agreement subtype of its "
+                      "non-choreography operator: got " (:form arg) " of type "
+                      (render-type (:rtype arg)) ", expected subtype of "
                       (render-type type)]
                      form env)
      (with-type ast type tenv))))
@@ -403,10 +409,10 @@
 (defn typecheck-collection [tenv {:keys [form env] :as ast} items-fn name]
   (let [ltype (lifted-type env)
         ast' (-typecheck* tenv ast)]
-    (when-let [item (type-mismatch-1 ltype (items-fn ast'))]
-      (analysis-error ["Element of a " name " doesn't match its agreement "
-                       "type: got " (:form item) " of type "
-                       (render-type (:rtype item)) ", expected "
+    (when-let [item (type-mismatch-1 ltype (items-fn ast') :subtype? true)]
+      (analysis-error ["Element of a " name " must be an agreement subtype of "
+                       "its collection: got " (:form item) " of type "
+                       (render-type (:rtype item)) ", expected subtype of "
                        (render-type ltype)]
                       form env))
     (with-type ast' ltype tenv)))
