@@ -318,9 +318,8 @@
         ;; Typecheck the body
         {:keys [body] :as ast''} (-typecheck* tenv''' ast' [:body])
         {:keys [ctor] :as type} (:rtype body)]
-    (when-not (type= type ltype)
-      (analysis-error ["`fn`'s return type must be " (render-type ltype)]
-                      form env))
+    (assert (type= type ltype)
+            "Expected `fn`'s return type to be equal to its own type")
     (with-type ast'' type tenv)))
 
 (defn type-mismatch [types asts]
