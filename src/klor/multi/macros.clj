@@ -26,14 +26,16 @@
   (when-not (and (vector? roles) (not-empty roles) (every? usym? roles)
                  (apply distinct? roles))
     (error :klor ["`defchor`'s roles must be given as a vector of distinct "
-                  "unqualified symbols:" roles]))
+                  "unqualified symbols: " roles]))
   (let [;; Create or fetch the var and remember its existing metadata
         exists? (ns-resolve *ns* name)
         var (intern *ns* name)
         m (meta var)
         {roles' :roles signature' :signature} (:klor/chor m)
         ;; Fill in the aux set for the new signature, if unspecified
-        signature (adjust-defchor-signature roles (parse-type tspec))]
+        signature (if-let [signature (parse-type tspec)]
+                    (adjust-defchor-signature roles signature)
+                    (error :klor ["Invalid `defchor` signature: " tspec]))]
     (try
       (let [;; Alter the metadata so that the analyzer can see it
             m' {:roles roles :signature signature}
