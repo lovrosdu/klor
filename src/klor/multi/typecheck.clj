@@ -7,10 +7,11 @@
    [klor.multi.types :refer [parse-type type-roles normalize-type render-type
                              substitute-roles]]
    [klor.multi.roles :refer [validate-roles]]
-   [klor.multi.util :refer [update-children* analysis-error]]))
+   [klor.multi.util :refer [update-children* analysis-error]]
+   [klor.util :refer [-str]]))
 
 (defn unpack-binder-matches-type? [binder {:keys [ctor elems] :as type}]
-  (or (not (vector? binder))
+  (or (symbol? binder)
       (and (= ctor :tuple)
            (= (count binder) (count elems))
            (every? (fn [[b t]] (unpack-binder-matches-type? b t))
@@ -18,7 +19,7 @@
 
 (defn unpack-binding-type [{:keys [position] :as binding} type]
   (loop [[p & ps :as position] position
-         {:keys [ctor elems] :as type} type]
+         {:keys [elems] :as type} type]
     (if (not (seq position)) type (recur ps (get elems p)))))
 
 ;;; Role Masks
@@ -45,14 +46,21 @@
 ;;;
 ;;; The type checking phase adds 2 keys to each AST node:
 ;;;
-;;; - `:rtype` -- the node's type. `:type` is already used by the `:binding`
-;;;   node so we use `:rtype` ("role type") to avoid conflict.
+;;; - `:rtype` -- the choreographic type of the expression represented by the
+;;;   node. `:type` is already used as a key by the `:binding` node so we use
+;;;   `:rtype` ("role type") to avoid conflict.
 ;;;
-;;; - `:rmentions` -- a set of roles "mentioned" by the AST or any of its
-;;;   children. "Mentioned" means that the role somehow participates in the
-;;;   *computation* of the expression. For this purpose, `local` does *not*
-;;;   represent any computation (as it only modifies the lifting rule),
-;;;   so `(local [Ana] ...)` does not count as a mention of `Ana`.
+;;; - `:rmentions` -- a set of roles "mentioned" by the expression represented
+;;;   by the node or any of its children. "Mentioned" means that the role
+;;;   somehow participates/is involved in the computation of the expression.
+;;;   This does not imply that the role is present within `:rtype` however -- a
+;;;   role might be mentioned by an expression but have no resulting value.
+;;;
+;;;   The set of mentions is essentially the union of all roles that occur in
+;;;   the types of all of the expression's subexpressions. Since `local` only
+;;;   modifies the lifting rule, `(local [Ana] <body>)` will not contain `Ana`
+;;;   in its mentions unless an expression within the body contains `Ana` in its
+;;;   type.
 ;;;
 ;;; The phase maintains its own typing environment ("tenv") to make the code
 ;;; easier to follow, but the local binding map of each AST node (under
@@ -78,8 +86,9 @@
 (defmulti -typecheck (fn [tenv {:keys [op] :as ast}] op))
 
 (defn typecheck
-  {:pass-info {:walk :none :depends #{#'validate-roles #'propagate-masks
-                                      #'jvm-validate/validate}}}
+  {:pass-info
+   {:walk :none
+    :depends #{#'jvm-validate/validate #'validate-roles #'propagate-masks}}}
   [ast]
   (-typecheck {:locals {}} ast))
 
@@ -112,8 +121,9 @@
   {:style/indent 0}
   [{:keys [form env] :as ast} type {:keys [fn-type] :as tenv}]
   (when (and fn-type (not (type= type fn-type)))
-    (analysis-error ["`fn`'s body cannot mention types different from its own "
-                     "agreement type: " (render-type type)]
+    (analysis-error ["`fn`'s body must be homogeneous; it cannot mention "
+                     "types different from its own agreement type: got "
+                     (render-type type) ", expected " (render-type fn-type)]
                     form env))
   (let [roles (type-roles type)
         mentions (apply set/union roles (map :rmentions (children ast)))]
@@ -130,7 +140,7 @@
 (defn add-fn-type [tenv type]
   (assoc tenv :fn-type type))
 
-;;; Klor-specific nodes
+;;; Choreographic
 
 (defmethod -typecheck :at [tenv ast]
   (let [{:keys [form env roles expr] :as ast'} (-typecheck* tenv ast)
@@ -347,7 +357,7 @@
      (with-type ast type tenv))))
 
 (defmethod -typecheck :invoke [tenv {:keys [form env] :as ast}]
-  (let [;; NOTE: Use `fn'` so that we don't shadow `fn`.
+  (let [;; Use `fn'` so that we don't shadow `fn`.
         {fn' :fn :keys [args] :as ast'} (-typecheck* tenv ast)
         {:keys [ctor params ret] :as type} (:rtype fn')]
     (case ctor
@@ -429,8 +439,7 @@
 ;;; Constants
 
 (defmethod -typecheck :const [tenv {:keys [env] :as ast}]
-  (let [ast' (-typecheck* tenv ast)]
-    (with-type ast' (lifted-type env) tenv)))
+  (with-type (-typecheck* tenv ast) (lifted-type env) tenv))
 
 (defmethod -typecheck :quote [tenv ast]
   (let [{:keys [expr] :as ast'} (-typecheck* tenv ast)]
@@ -465,19 +474,16 @@
 
 ;;; Sanity Check
 
-(defn -sanity-check [local? {:keys [op meta form env rtype rmentions] :as ast}]
-  ;; NOTE: We skip references to vars that are choreography definitions, as they
-  ;; are technically of a polymorphic type which we do not represent in our
-  ;; types for now.
-  (assert rtype (str "Missing type: " [local? form]))
+(defn -sanity-check [local? {:keys [form env op rtype rmentions] :as ast}]
+  (assert rtype (-str "Missing type: " op ", " form))
   (assert (try (parse-type (render-type rtype)) (catch Throwable t))
-          (str "Invalid type: " rtype ", " [local? form]))
+          (-str "Invalid type: " rtype ", " op ", " form))
   (assert (not-empty rmentions)
-          (str "Missing role mentions: " [local? form]))
+          (-str "Missing role mentions: " op ", " form))
   (when-not local?
-    (assert (:mask env) (str "Missing mask: " form))
+    (assert (:mask env) (-str "Missing mask: " form))
     (assert (every? (partial -sanity-check true) (vals (:locals env)))
-            (str "Incorrect locals: " (:locals env))))
+            (-str "Incorrect locals: " (:locals env))))
   true)
 
 (defn sanity-check

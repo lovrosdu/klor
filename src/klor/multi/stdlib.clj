@@ -38,7 +38,7 @@
     (let [params (map process-chor-param params)
           unpacks (filter first params)
           names (mapv second params)]
-      `(chor* ~@(and name `(~name)) ~tspec ~names
+      `(chor* ~@(when name [name]) ~tspec ~names
          ~@(if (empty? unpacks)
              body
              `((unpack ~(into [] (apply concat unpacks))

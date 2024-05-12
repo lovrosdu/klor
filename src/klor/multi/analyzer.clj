@@ -88,7 +88,7 @@
             (mapcat identity))))
    binder []))
 
-(defn analyze-unpack-binder [form env binder init]
+(defn analyze-unpack-binder [form env binder]
   (when-not (unpack-binder? binder)
     (analysis-error ["Invalid `unpack*` binder: " binder] form env))
   (for [[name position] (traverse-unpack-binder binder)]
@@ -104,7 +104,7 @@
   (when-not (>= (count form) 3)
     (analysis-error "`unpack*` needs at least 2 arguments" form env))
   (let [init (clj-analyzer/analyze-form init (ctx env :ctx/expr))
-        bindings (analyze-unpack-binder form env binder init)
+        bindings (analyze-unpack-binder form env binder)
         locals (into {} (for [b bindings] [(:name b) (dissoc-env b)]))
         env' (mmerge env {:locals locals})]
     {:op       :unpack
@@ -124,6 +124,7 @@
           (:agree :tuple) type
           :chor (update type :aux #(if (= % :none) #{} %))))
       (map-type type)
+      ;; NOTE: Preserve the top-level aux set.
       (assoc :aux aux)))
 
 (defn parse-chor-args [[_ & [name & _ :as args] :as form] env]
@@ -307,7 +308,8 @@
     #_#'clojure.tools.analyzer.passes.source-info/source-info
 
     ;; Elide metadata given by `clojure.tools.analyzer.passes.elide-meta/elides`
-    ;; or `*compiler-options*`.
+    ;; or `*compiler-options*`. `clojure.tools.analyzer.jvm/analyze` provides a
+    ;; default set of elides for `fn` and `reify` forms.
     #_#'clojure.tools.analyzer.passes.elide-meta/elide-meta
 
     ;; Propagate constness to vectors, maps and sets of constants.

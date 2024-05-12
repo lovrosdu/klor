@@ -15,7 +15,7 @@
           [] bindings))
 
 ;;; NOTE: We use `mapv` throughout the code to force the evaluation of sequences
-;;; within the context of dynamic binding of `clj-emit/-emit-form*`.
+;;; within the context of the dynamic binding of `clj-emit/-emit-form*`.
 
 (defmulti -emit-form (fn [{:keys [op] :as ast} opts] op))
 
@@ -49,7 +49,7 @@
 
 (defmethod -emit-form :chor [{:keys [local signature params body]} opts]
   `(~'chor*
-    ~@(and local `(~(clj-emit/-emit-form* local opts)))
+    ~@(when local [(clj-emit/-emit-form* local opts)])
     ~(render-type signature)
     ~(mapv #(clj-emit/-emit-form* % opts) params)
     ~(clj-emit/-emit-form* body opts)))
