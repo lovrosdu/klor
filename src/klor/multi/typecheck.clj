@@ -327,6 +327,8 @@
 
 (defmethod -typecheck :case-test [tenv ast]
   (let [{:keys [test] :as ast'} (-typecheck* tenv ast)]
+    (assert (= (:ctor (:rtype test)) :agree)
+            "`case` test constant is not of agreement type")
     (with-type ast' (:rtype test) tenv)))
 
 (defmethod -typecheck :case-then [tenv ast]
@@ -468,7 +470,12 @@
     (with-type ast' (:rtype expr) tenv)))
 
 (defmethod -typecheck :with-meta [tenv ast]
-  (let [{:keys [expr] :as ast'} (-typecheck* tenv ast)]
+  (let [{:keys [expr meta] :as ast'} (-typecheck* tenv ast)]
+    ;; NOTE: I believe it is syntactically impossible in Klor to arrange for an
+    ;; expression and its metadata to be of different types (agreement types in
+    ;; this case, since `expr` is one of `:vector`, `:map`, `:set` or `:fn`).
+    (assert (type= (:rtype expr) (:rtype meta))
+            "Expected an expression and its metadata to have the same type")
     (with-type ast' (:rtype expr) tenv)))
 
 ;;; Host Interop
