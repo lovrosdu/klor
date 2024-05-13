@@ -1,6 +1,6 @@
 (ns klor.multi.macros
   (:require [clojure.set :as set]
-            [klor.multi.analyzer :refer [analyze]]
+            [klor.multi.analyzer :refer [analyze adjust-chor-signature]]
             [klor.multi.types :refer [parse-type type-roles render-type
                                       substitute-roles]]
             [klor.multi.stdlib :refer [chor]]
@@ -8,8 +8,15 @@
             [klor.util :refer [warn error]]))
 
 (defn adjust-defchor-signature [roles type]
-  (update type :aux #(let [main (type-roles (assoc type :aux #{}))]
-                       (set/difference (if (= % :none) (set roles) %) main))))
+  (-> (update type :aux #(let [main (type-roles (assoc type :aux #{}))]
+                           (set/difference (if (= % :none) (set roles) %)
+                                           main)))
+      ;; NOTE: Set unspecified aux sets of any choreography parameters to the
+      ;; empty set. This is already done by the analyzer and ideally we would
+      ;; just inherit the final signature from the type checker, but we need to
+      ;; be able to install the definition's signature *before* any analysis is
+      ;; done, due to possibility of recursion and self-reference.
+      adjust-chor-signature))
 
 (defn signature-changed? [roles' signature' roles signature]
   (and roles' roles
