@@ -105,6 +105,14 @@
                 {ctor2 :ctor roles2 :roles :as t2}]
   (and (= ctor1 :agree) (= ctor2 :agree) (set/superset? roles1 roles2)))
 
+(defn type-mismatch [types asts & {:as opts}]
+  (let [check (if (:subtype? opts) subtype? type=)]
+    (first (filter (fn [[t a]] (not (check (:rtype a) t)))
+                   (map vector types asts)))))
+
+(defn type-mismatch-1 [type asts & {:as opts}]
+  (second (type-mismatch (repeat type) asts opts)))
+
 (defn lifted-type [{:keys [mask] :as env}]
   {:ctor :agree :roles mask})
 
@@ -271,29 +279,51 @@
 
 (defmethod -typecheck :if [tenv {:keys [form env] :as ast}]
   (let [{:keys [test then else] :as ast'} (-typecheck* tenv ast)
-        [{:keys [ctor] :as type} type1 type2] (map :rtype [test then else])]
-    (when (not= ctor :agree)
+        {:keys [ctor roles] :as test-type} (:rtype test)
+        [type1 type2] (map :rtype [then else])]
+    (when-not (= ctor :agree)
       (analysis-error ["`if`'s condition must be of agreement type: "
-                       (render-type type)]
+                       (render-type test-type)]
                       form env))
     (when-not (type= type1 type2)
       (analysis-error ["`if`'s branches must be of the same type: "
                        (render-type type1) " vs. " (render-type type2)]
                       form env))
+    (when-let [diff (not-empty (set/difference
+                                (set/union (:rmentions then) (:rmentions else))
+                                roles))]
+      (analysis-error ["`if`'s branches cannot mention roles not part of the "
+                       "condition: " diff]
+                      form env))
     (with-type ast' type1 tenv)))
 
 (defmethod -typecheck :case [tenv {:keys [form env] :as ast}]
   (let [{:keys [test tests thens default] :as ast'} (-typecheck* tenv ast)
-        branches (concat thens [default])]
-    (when-not (apply type= (map :rtype (cons test tests)))
-      (analysis-error ["`case`'s test expression and constants must all be of "
-                       "the same agreement type"]
+        tests' (cons test tests)
+        branches (concat thens [default])
+        test-type (:rtype test)
+        type (:rtype (first branches))]
+    (when-not (= (:ctor test-type) :agree)
+      (analysis-error ["`case`'s test expression must be of agreement type: "
+                       (render-type test-type)]
                       form env))
-    (when-not (apply type= (map :rtype branches))
-      (analysis-error ["`case`'s branches must all be of the same agreement "
-                       "type"]
+    (when-let [test' (type-mismatch-1 test-type tests)]
+      (analysis-error ["`case`'s test constants must be of the same agreement "
+                       "type as its test expression: got "
+                       (render-type (:rtype test')) ", expected "
+                       (render-type test-type)]
                       form env))
-    (with-type ast' (:rtype (first branches)) tenv)))
+    (when-let [branch (type-mismatch-1 type (next branches))]
+      (analysis-error ["`case`'s branches must all be of the same type: "
+                       (render-type (:rtype branch)) " vs. " (render-type type)]
+                      form env))
+    (when-let [diff (not-empty (set/difference
+                                (apply set/union (map :rmentions branches))
+                                (:roles test-type)))]
+      (analysis-error ["`case`'s branches cannot mention roles not part of the "
+                       "test expression: " diff]
+                      form env))
+    (with-type ast' type tenv)))
 
 (defmethod -typecheck :case-test [tenv ast]
   (let [{:keys [test] :as ast'} (-typecheck* tenv ast)]
@@ -335,14 +365,6 @@
     (assert (type= type ltype)
             "Expected `fn`'s return type to be equal to its own type")
     (with-type ast'' type tenv)))
-
-(defn type-mismatch [types asts & {:as opts}]
-  (let [check (if (:subtype? opts) subtype? type=)]
-    (first (filter (fn [[t a]] (not (check (:rtype a) t)))
-                   (map vector types asts)))))
-
-(defn type-mismatch-1 [type asts & {:as opts}]
-  (second (type-mismatch (repeat type) asts opts)))
 
 (defn typecheck-homogeneous-op
   ([tenv ast type]
