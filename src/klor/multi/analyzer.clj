@@ -253,7 +253,7 @@
 ;;; Syntax Sugar
 
 (defn role? [form {:keys [roles] :as env}]
-  (contains? roles form))
+  (some #{form} roles))
 
 (defn parse-role-expr [[role & body :as form] env]
   (assoc (parse-local `(~'local [~role] ~@body) env) :sugar? true))

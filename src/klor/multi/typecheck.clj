@@ -27,7 +27,7 @@
 (defn init-mask
   {:pass-info {:walk :none :depends #{#'validate-roles}}}
   [{:keys [env] :as ast}]
-  (assoc-in ast [:env :mask] (:roles env)))
+  (assoc-in ast [:env :mask] (set (:roles env))))
 
 (defn propagate-mask [mask ast]
   (update-children ast #(assoc-in % [:env :mask] mask)))

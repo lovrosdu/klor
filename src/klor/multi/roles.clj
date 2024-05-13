@@ -11,7 +11,7 @@
     (analysis-error ["Roles must be unqualified symbols: " roles] form env))
   (when-not (apply distinct? roles)
     (analysis-error (str "Duplicate roles: " roles) form env))
-  (let [diff (set/difference (set roles) (:roles env))]
+  (let [diff (set/difference (set roles) (set (:roles env)))]
     (when-not (empty? diff)
       (analysis-error (str "Unknown roles: " diff) form env))))
 
