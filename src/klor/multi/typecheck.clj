@@ -1,13 +1,14 @@
 (ns klor.multi.typecheck
   (:require
    [clojure.set :as set]
-   [clojure.tools.analyzer.ast :refer [children update-children]]
+   [clojure.core.match :refer [match]]
+   [clojure.tools.analyzer.ast :as ast :refer [children update-children]]
    [clojure.tools.analyzer.utils :refer [mmerge]]
    [clojure.tools.analyzer.passes.jvm.validate :as jvm-validate]
    [klor.multi.types :refer [parse-type type-roles normalize-type render-type
                              substitute-roles]]
    [klor.multi.roles :refer [validate-roles]]
-   [klor.multi.util :refer [update-children* analysis-error]]
+   [klor.multi.util :refer [update-children* replace-children analysis-error]]
    [klor.util :refer [-str]]))
 
 (defn unpack-binder-matches-type? [binder {:keys [ctor elems] :as type}]
@@ -105,14 +106,6 @@
                 {ctor2 :ctor roles2 :roles :as t2}]
   (and (= ctor1 :agree) (= ctor2 :agree) (set/superset? roles1 roles2)))
 
-(defn type-mismatch [types asts & {:as opts}]
-  (let [check (if (:subtype? opts) subtype? type=)]
-    (first (filter (fn [[t a]] (not (check (:rtype a) t)))
-                   (map vector types asts)))))
-
-(defn type-mismatch-1 [type asts & {:as opts}]
-  (second (type-mismatch (repeat type) asts opts)))
-
 (defn lifted-type [{:keys [mask] :as env}]
   {:ctor :agree :roles mask})
 
@@ -136,6 +129,43 @@
   (let [roles (type-roles type)
         mentions (apply set/union roles (map :rmentions (children ast)))]
     (assoc (with-locals ast tenv) :rtype type :rmentions mentions)))
+
+(defn wrap-at [{:keys [form env] :as ast} type]
+  (let [roles (vec (type-roles type))]
+    {:op       :at
+     :form     `(~'at ~roles ~form)
+     :env      env
+     :roles    roles
+     :expr     ast
+     :children [:expr]}))
+
+(defn type-match [tenv asts types & {:as opts}]
+  (reduce (fn [[_ res] [{t' :rtype :as a} t :as item]]
+            (cond
+              (type= t' t)
+              [:ok (conj res a)]
+
+              (and (:subtype? opts) (subtype? t' t))
+              [:ok (conj res (with-type (wrap-at a t) t tenv))]
+
+              :else
+              (reduced [:err item])))
+          [:ok []]
+          (map vector asts types)))
+
+(defn type-mismatch [tenv asts types]
+  (match (type-match tenv asts types)
+    [:err item] item
+    [:ok _] nil))
+
+(defn type-mismatch-1 [tenv asts type]
+  (first (type-mismatch tenv asts (repeat type))))
+
+(defn ensure-type-match [tenv type {:keys [form env] :as ast} children err-fn]
+  (let [asts (ast/children (assoc ast :children children))]
+    (match (type-match tenv asts (repeat type) :subtype? true)
+      [:err [arg _]] (err-fn arg)
+      [:ok args] (replace-children ast (zipmap asts args)))))
 
 (defn extend-tenv [tenv bindings]
   (update tenv :locals into
@@ -307,13 +337,13 @@
       (analysis-error ["`case`'s test expression must be of agreement type: "
                        (render-type test-type)]
                       form env))
-    (when-let [test' (type-mismatch-1 test-type tests)]
+    (when-let [test' (type-mismatch-1 tenv tests test-type)]
       (analysis-error ["`case`'s test constants must be of the same agreement "
                        "type as its test expression: got "
                        (render-type (:rtype test')) ", expected "
                        (render-type test-type)]
                       form env))
-    (when-let [branch (type-mismatch-1 type (next branches))]
+    (when-let [branch (type-mismatch-1 tenv (next branches) type)]
       (analysis-error ["`case`'s branches must all be of the same type: "
                        (render-type (:rtype branch)) " vs. " (render-type type)]
                       form env))
@@ -369,16 +399,17 @@
     (with-type ast'' type tenv)))
 
 (defn typecheck-homogeneous-op
-  ([tenv ast type]
-   (typecheck-homogeneous-op tenv ast type (children ast)))
-  ([tenv {:keys [form env] :as ast} type args]
-   (if-let [arg (type-mismatch-1 type args :subtype? true)]
-     (analysis-error ["Argument must be an agreement subtype of its "
-                      "non-choreography operator: got " (:form arg) " of type "
-                      (render-type (:rtype arg)) ", expected subtype of "
-                      (render-type type)]
-                     form env)
-     (with-type ast type tenv))))
+  ([tenv type {:keys [children] :as ast}]
+   (typecheck-homogeneous-op tenv type ast children))
+  ([tenv type {:keys [form env] :as ast} children]
+   (letfn [(err [arg]
+             (analysis-error
+              ["Argument must be an agreement subtype of its non-choreography "
+               "operator's type: got " (:form arg) " of type "
+               (render-type (:rtype arg)) ", expected subtype of "
+               (render-type type)]
+              form env))]
+     (with-type (ensure-type-match tenv type ast children err) type tenv))))
 
 (defmethod -typecheck :invoke [tenv {:keys [form env] :as ast}]
   (let [;; Use `fn'` so that we don't shadow `fn`.
@@ -388,7 +419,7 @@
       ;; The operator is of agreement type: the types of the arguments must be
       ;; of that same agreement type
       :agree
-      (typecheck-homogeneous-op tenv ast' type)
+      (typecheck-homogeneous-op tenv type ast' [:args])
       ;; The operator is a choreography: the types of the arguments must match
       ;; the types of their respective parameters
       :chor
@@ -398,7 +429,7 @@
           (analysis-error ["Wrong number of arguments in a choreography "
                            "invocation: got " c1 ", expected " c2]
                           form env))
-        (when-let [[param arg] (type-mismatch params args)]
+        (when-let [[arg param] (type-mismatch tenv args params)]
           (analysis-error ["Argument doesn't match the choreography's "
                            "parameter type: got " (:form arg) " of type "
                            (render-type (:rtype arg)) ", expected "
@@ -413,7 +444,7 @@
 (defmethod -typecheck :recur
   [{:keys [recur-params recur-ret] :as tenv} {:keys [form env] :as ast}]
   (let [{:keys [exprs] :as ast'} (-typecheck* tenv ast [:exprs])]
-    (when-let [[param expr] (type-mismatch recur-params exprs)]
+    (when-let [[expr param] (type-mismatch tenv exprs recur-params)]
       (analysis-error ["Argument to `recur` doesn't match the binding's type: "
                        "got " (:form expr) " of type "
                        (render-type (:rtype expr)) ", expected "
@@ -440,25 +471,23 @@
 
 ;;; Collections
 
-(defn typecheck-collection [tenv {:keys [form env] :as ast} items-fn name]
-  (let [ltype (lifted-type env)
-        ast' (-typecheck* tenv ast)]
-    (when-let [item (type-mismatch-1 ltype (items-fn ast') :subtype? true)]
-      (analysis-error ["Element of a " name " must be an agreement subtype of "
-                       "its collection: got " (:form item) " of type "
-                       (render-type (:rtype item)) ", expected subtype of "
-                       (render-type ltype)]
-                      form env))
-    (with-type ast' ltype tenv)))
+(defn typecheck-collection [tenv type {:keys [form env children] :as ast}]
+  (letfn [(err [arg]
+            (analysis-error
+             ["Element must be an agreement subtype of its collection's type: "
+              "got " (:form arg) " of type " (render-type (:rtype arg))
+              ", expected " "subtype of " (render-type type)]
+             form env))]
+    (with-type (ensure-type-match tenv type ast children err) type tenv)))
 
 (defmethod -typecheck :vector [tenv {:keys [form env] :as ast}]
-  (typecheck-collection tenv ast :items "vector"))
+  (typecheck-collection tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :map [tenv {:keys [form env] :as ast}]
-  (typecheck-collection tenv ast #(concat (:keys %) (:vals %)) "map"))
+  (typecheck-collection tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :set [tenv {:keys [form env] :as ast}]
-  (typecheck-collection tenv ast :items "set"))
+  (typecheck-collection tenv (lifted-type env) (-typecheck* tenv ast)))
 
 ;;; Constants
 
@@ -481,22 +510,22 @@
 ;;; Host Interop
 
 (defmethod -typecheck :new [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (-typecheck* tenv ast) (lifted-type env)))
+  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :host-interop [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (-typecheck* tenv ast) (lifted-type env)))
+  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :instance-field [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (-typecheck* tenv ast) (lifted-type env)))
+  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :instance-call [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (-typecheck* tenv ast) (lifted-type env)))
+  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :static-field [tenv {:keys [env] :as ast}]
   (with-type ast (lifted-type env) tenv))
 
 (defmethod -typecheck :static-call [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (-typecheck* tenv ast) (lifted-type env)))
+  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :default [tenv {:keys [op form env] :as ast}]
   (analysis-error ["Don't know how to typecheck " op ", yet!"] form env))

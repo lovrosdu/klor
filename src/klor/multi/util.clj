@@ -25,5 +25,8 @@
       (update-children f)
       (assoc :children (:children ast))))
 
+(defn replace-children [ast smap]
+  (update-children ast #(get smap % %)))
+
 (defn analysis-error [msg form env & {:as kvs}]
   (error :klor/analyzer msg (merge {:form form} (-source-info form env) kvs)))
