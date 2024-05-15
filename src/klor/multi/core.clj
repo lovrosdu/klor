@@ -1,10 +1,10 @@
 (ns klor.multi.core
-  (:require klor.multi.macros
+  (:require klor.multi.defchor
             klor.multi.specials
             klor.multi.stdlib
             potemkin))
 
 (potemkin/import-vars
- [klor.multi.macros defchor]
+ [klor.multi.defchor defchor]
  [klor.multi.specials at local copy pack unpack* chor* inst]
  [klor.multi.stdlib move unpack chor])

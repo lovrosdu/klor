@@ -1,4 +1,4 @@
-(ns klor.multi.macros
+(ns klor.multi.defchor
   (:require [clojure.set :as set]
             [klor.multi.analyzer :refer [analyze adjust-chor-signature project]]
             [klor.multi.types :refer [parse-type type-roles render-type
