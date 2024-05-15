@@ -27,10 +27,10 @@
       `(~(symbol (str src "->" dst)) ~(clj-emit/-emit-form* expr' opts)))
     `(~'narrow ~roles ~(clj-emit/-emit-form* expr opts))))
 
-(defmethod -emit-form :mask [{:keys [roles body sugar?]} opts]
+(defmethod -emit-form :lifting [{:keys [roles body sugar?]} opts]
   (if (and (:sugar opts) sugar?)
     `(~(first roles) ~(clj-emit/-emit-form* body opts))
-    `(~'local ~roles ~(clj-emit/-emit-form* body opts))))
+    `(~'lifting ~roles ~(clj-emit/-emit-form* body opts))))
 
 (defmethod -emit-form :copy [{:keys [src dst expr sugar?]} opts]
   (if (and (:sugar opts) sugar?)

@@ -14,7 +14,7 @@
    [klor.multi.types :refer [parse-type map-type normalize-type render-type]]
    [klor.multi.typecheck]
    [klor.multi.projection :as proj]
-   [klor.multi.specials :refer [narrow local copy pack unpack* chor* inst]]
+   [klor.multi.specials :refer [narrow lifting copy pack unpack* chor* inst]]
    [klor.multi.util :refer [usym? unpack-binder? analysis-error]]
    [klor.util :refer [error]]))
 
@@ -45,14 +45,13 @@
    :expr     (clj-analyzer/analyze-form expr (ctx env :ctx/expr))
    :children [:expr]})
 
-(defn parse-local [[_ roles & body :as form] env]
+(defn parse-lifting [[_ roles & body :as form] env]
   (when-not (>= (count form) 2)
-    (analysis-error "`local` needs at least 1 argument" form env))
+    (analysis-error "`lifting` needs at least 1 argument" form env))
   (when-not (and (vector? roles) (not-empty roles))
-    (analysis-error ["`local` needs a non-empty vector of roles: " roles]
+    (analysis-error ["`lifting` needs a non-empty vector of roles: " roles]
                     form env))
-  ;; NOTE: We use `:mask` because `:local` is used for references to locals.
-  {:op       :mask
+  {:op       :lifting
    :form     form
    :env      env
    :roles    roles
@@ -220,7 +219,7 @@
 
 (def specials
   (merge (special #'narrow  #'parse-narrow)
-         (special #'local   #'parse-local)
+         (special #'lifting #'parse-lifting)
          (special #'copy    #'parse-copy)
          (special #'pack    #'parse-pack)
          (special #'unpack* #'parse-unpack*)
@@ -262,7 +261,7 @@
   (some #{form} roles))
 
 (defn parse-role-expr [[role & body :as form] env]
-  (assoc (parse-local `(~'local [~role] ~@body) env) :sugar? true))
+  (assoc (parse-lifting `(~'lifting [~role] ~@body) env) :sugar? true))
 
 (defn role-op [op form env]
   (and (usym? form)
@@ -364,7 +363,7 @@
     ;; Throw on invalid role applications.
     #_#'klor.multi.validate-roles/validate-roles
 
-    ;; Propagate role masks.
+    ;; Propagate lifting masks.
     #_#'klor.multi.typecheck/propagate-masks
 
     ;; Typecheck.

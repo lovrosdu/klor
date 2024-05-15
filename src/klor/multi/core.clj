@@ -6,5 +6,5 @@
 
 (potemkin/import-vars
  [klor.multi.defchor defchor]
- [klor.multi.specials narrow local copy pack unpack* chor* inst]
+ [klor.multi.specials narrow lifting copy pack unpack* chor* inst]
  [klor.multi.stdlib move unpack chor])

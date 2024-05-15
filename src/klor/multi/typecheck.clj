@@ -23,7 +23,7 @@
          {:keys [elems] :as type} type]
     (if (not (seq position)) type (recur ps (get elems p)))))
 
-;;; Role Masks
+;;; Lifting Masks
 
 (defn init-mask
   {:pass-info {:walk :none :depends #{#'validate-roles}}}
@@ -37,7 +37,7 @@
   {:pass-info {:walk :pre :depends #{#'init-mask}}}
   :op)
 
-(defmethod propagate-masks :mask [{:keys [roles] :as ast}]
+(defmethod propagate-masks :lifting [{:keys [roles] :as ast}]
   (propagate-mask (set roles) ast))
 
 (defmethod propagate-masks :default [{:keys [env] :as ast}]
@@ -58,8 +58,8 @@
 ;;;   role might be mentioned by an expression but have no resulting value.
 ;;;
 ;;;   The set of mentions is essentially the union of all roles that occur in
-;;;   the types of all of the expression's subexpressions. Since `local` only
-;;;   modifies the lifting rule, `(local [Ana] <body>)` will not contain `Ana`
+;;;   the types of all of the expression's subexpressions. Since `lifting` only
+;;;   modifies the lifting rule, `(lifting [Ana] <body>)` will not contain `Ana`
 ;;;   in its mentions unless an expression within the body contains `Ana` in its
 ;;;   type.
 ;;;
@@ -192,7 +192,7 @@
                       form env))
     (with-type ast' (assoc type :roles roles) tenv)))
 
-(defmethod -typecheck :mask [tenv ast]
+(defmethod -typecheck :lifting [tenv ast]
   (let [{:keys [body] :as ast'} (-typecheck* tenv ast)]
     (with-type ast' (:rtype body) tenv)))
 

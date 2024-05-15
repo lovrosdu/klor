@@ -5,9 +5,9 @@
   (warn "`narrow` used outside of a choreographic context")
   &form)
 
-(defmacro local [[role+] & body]
+(defmacro lifting [[role+] & body]
   {:style/indent 1}
-  (warn "`local` used outside of a choreographic context")
+  (warn "`lifting` used outside of a choreographic context")
   &form)
 
 (defmacro copy [[src dst] expr]

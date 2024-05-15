@@ -102,7 +102,7 @@
     (-project* ctx expr)
     (emit-effects [(-project* ctx expr)])))
 
-(defmethod -project :mask [ctx {:keys [body] :as ast}]
+(defmethod -project :lifting [ctx {:keys [body] :as ast}]
   (-project* ctx body))
 
 (defmethod -project :copy [ctx {:keys [src dst expr env] :as ast}]

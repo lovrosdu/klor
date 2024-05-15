@@ -21,7 +21,7 @@
   (-validate-roles form env roles)
   ast)
 
-(defmethod validate-roles :mask [{:keys [form env roles] :as ast}]
+(defmethod validate-roles :lifting [{:keys [form env roles] :as ast}]
   (-validate-roles form env roles)
   ast)
 
