@@ -65,9 +65,10 @@
             ;; convenience.
             `(def ~(vary-meta name #(merge % `{:klor/chor '~m'}))
                ~(with-meta (vec projs) `{:klor/chor '~m'})))))
-      (catch Exception e
-        ;; Roll back the metadata or remove the var if the analysis failed
+      (finally
+        ;; NOTE: We don't want to create or modify the var during
+        ;; macroexpansion, so we unconditionally roll back our changes and leave
+        ;; the job to the evaluation of the `def` form.
         (if exists?
           (alter-meta! var (constantly m))
-          (ns-unmap *ns* name))
-        (throw e)))))
+          (ns-unmap *ns* name))))))
