@@ -8,6 +8,7 @@
             [klor.multi.runtime :refer [noop send recv make-chor]]
             [klor.multi.types :refer [type-roles]]
             [klor.multi.typecheck :refer [typecheck sanity-check]]
+            [klor.multi.util :refer [usym?]]
             [klor.util :refer [error]]))
 
 ;;; Util
@@ -63,8 +64,10 @@
                :after #{#'sanity-check}
                :compiler true}}
   ([ast]
-   (-project* (:project (:passes-opts (env/deref-env))) ast))
-  ([ast & {:as ctx}]
+   (-project (:project (:passes-opts (env/deref-env))) ast))
+  ([ast & {:keys [role] :as ctx}]
+   (assert (usym? role) "Role must be an unqualified symbol")
+   (assert (:rtype ast) "AST is missing type information")
    (-project* ctx ast)))
 
 ;;; Utilities

@@ -379,9 +379,12 @@
   (schedule analyze-passes))
 
 (defn analyze [form & {:keys [env bindings run-passes passes-opts] :as opts}]
-  (let [bindings' {#'clj-analyzer/macroexpand-1 macroexpand-1
+  (let [{:keys [roles]} env
+        bindings' {#'clj-analyzer/macroexpand-1 macroexpand-1
                    #'clj-analyzer/parse parse
                    #'jvm-analyzer/run-passes (or run-passes analyze-passes*)}]
+    (assert (and (seqable? roles) (not-empty roles) (every? usym? roles))
+            "Roles must be a non-empty seq of unqualified symbols")
     (jvm-analyzer/analyze form (merge (jvm-analyzer/empty-env) env)
                           {:bindings (merge bindings' bindings)
                            :passes-opts passes-opts})))
