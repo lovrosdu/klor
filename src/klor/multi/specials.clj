@@ -1,8 +1,8 @@
 (ns klor.multi.specials
   (:require [klor.util :refer [warn]]))
 
-(defmacro at [[role+] expr]
-  (warn "`at` used outside of a choreographic context")
+(defmacro narrow [[role+] expr]
+  (warn "`narrow` used outside of a choreographic context")
   &form)
 
 (defmacro local [[role+] & body]

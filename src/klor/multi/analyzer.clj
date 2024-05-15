@@ -14,7 +14,7 @@
    [klor.multi.types :refer [parse-type map-type normalize-type render-type]]
    [klor.multi.typecheck]
    [klor.multi.projection :as proj]
-   [klor.multi.specials :refer [at local copy pack unpack* chor* inst]]
+   [klor.multi.specials :refer [narrow local copy pack unpack* chor* inst]]
    [klor.multi.util :refer [usym? unpack-binder? analysis-error]]
    [klor.util :refer [error]]))
 
@@ -32,13 +32,13 @@
 
 ;;; Special Operators
 
-(defn parse-at [[_ roles expr :as form] env]
+(defn parse-narrow [[_ roles expr :as form] env]
   (when-not (= (count form) 3)
-    (analysis-error "`at` needs exactly 2 arguments" form env))
+    (analysis-error "`narrow` needs exactly 2 arguments" form env))
   (when-not (and (vector? roles) (not-empty roles))
-    (analysis-error ["`at` needs a non-empty vector of roles: " roles]
+    (analysis-error ["`narrow` needs a non-empty vector of roles: " roles]
                     form env))
-  {:op       :at
+  {:op       :narrow
    :form     form
    :env      env
    :roles    roles
@@ -219,7 +219,7 @@
    var                parser})
 
 (def specials
-  (merge (special #'at      #'parse-at)
+  (merge (special #'narrow  #'parse-narrow)
          (special #'local   #'parse-local)
          (special #'copy    #'parse-copy)
          (special #'pack    #'parse-pack)
@@ -273,7 +273,8 @@
   (assoc (parse-copy `(~'copy [~@roles] ~expr) env) :sugar? true))
 
 (defn parse-move-expr [[_ dst :as roles] [_ expr] env]
-  (assoc (parse-at `(~'at [~dst] (~'copy [~@roles] ~expr)) env) :sugar? true))
+  (assoc (parse-narrow `(~'narrow [~dst] (~'copy [~@roles] ~expr)) env)
+         :sugar? true))
 
 (defn inline-inst-expr? [[name roles & exprs :as form] env]
   (when-let [var (resolve-sym name env)]

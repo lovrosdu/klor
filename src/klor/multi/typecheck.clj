@@ -130,10 +130,10 @@
         mentions (apply set/union roles (map :rmentions (children ast)))]
     (assoc (with-locals ast tenv) :rtype type :rmentions mentions)))
 
-(defn wrap-at [{:keys [form env] :as ast} type]
+(defn wrap-narrow [{:keys [form env] :as ast} type]
   (let [roles (vec (type-roles type))]
-    {:op       :at
-     :form     `(~'at ~roles ~form)
+    {:op       :narrow
+     :form     `(~'narrow ~roles ~form)
      :env      env
      :roles    roles
      :expr     ast
@@ -146,7 +146,7 @@
               [:ok (conj res a)]
 
               (and (:subtype? opts) (subtype? t' t))
-              [:ok (conj res (with-type (wrap-at a t) t tenv))]
+              [:ok (conj res (with-type (wrap-narrow a t) t tenv))]
 
               :else
               (reduced [:err item])))
@@ -180,15 +180,16 @@
 
 ;;; Choreographic
 
-(defmethod -typecheck :at [tenv ast]
+(defmethod -typecheck :narrow [tenv ast]
   (let [{:keys [form env roles expr] :as ast'} (-typecheck* tenv ast)
         roles (set roles)
         {eroles :roles :keys [ctor] :as type} (:rtype expr)]
     (when-not (= ctor :agree)
-      (analysis-error ["Argument to `at` is not of agreement type: " type]
+      (analysis-error ["Argument to `narrow` is not of agreement type: " type]
                       form env))
     (if-let [diff (not-empty (set/difference roles eroles))]
-      (analysis-error ["Argument to `at` is missing roles: " diff] form env))
+      (analysis-error ["Argument to `narrow` is missing roles: " diff]
+                      form env))
     (with-type ast' (assoc type :roles roles) tenv)))
 
 (defmethod -typecheck :mask [tenv ast]

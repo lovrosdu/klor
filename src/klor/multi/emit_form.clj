@@ -20,12 +20,12 @@
 
 (defmulti -emit-form (fn [{:keys [op] :as ast} opts] op))
 
-(defmethod -emit-form :at [{:keys [roles expr sugar?]} opts]
+(defmethod -emit-form :narrow [{:keys [roles expr sugar?]} opts]
   (if (and (:sugar opts) sugar?)
     (let [{expr' :expr :keys [op src dst]} expr]
       (assert (= op :copy) "Expected a child `:copy` node when `sugar?` is set")
       `(~(symbol (str src "->" dst)) ~(clj-emit/-emit-form* expr' opts)))
-    `(~'at ~roles ~(clj-emit/-emit-form* expr opts))))
+    `(~'narrow ~roles ~(clj-emit/-emit-form* expr opts))))
 
 (defmethod -emit-form :mask [{:keys [roles body sugar?]} opts]
   (if (and (:sugar opts) sugar?)

@@ -17,7 +17,7 @@
   {:pass-info {:walk :post}}
   :op)
 
-(defmethod validate-roles :at [{:keys [form env roles] :as ast}]
+(defmethod validate-roles :narrow [{:keys [form env roles] :as ast}]
   (-validate-roles form env roles)
   ast)
 

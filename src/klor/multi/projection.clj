@@ -94,9 +94,9 @@
 
 ;;; Choreographic
 
-(defmethod -project :at [ctx {:keys [expr] :as ast}]
+(defmethod -project :narrow [ctx {:keys [expr] :as ast}]
   ;; We are 100% mentioned in `expr` but we might not be in the result of the
-  ;; `at`, even if we are in the result of `expr`. IOW, `at` narrows the
+  ;; `narrow`, even if we are in the result of `expr`. IOW, `narrow` narrows the
   ;; location of `expr`'s result.
   (if (has-result-for-node? ctx ast)
     (-project* ctx expr)

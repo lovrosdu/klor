@@ -1,13 +1,13 @@
 (ns klor.multi.stdlib
   (:require [klor.util :refer [error]]
-            [klor.multi.specials :refer [at copy unpack* chor*]]
+            [klor.multi.specials :refer [narrow copy unpack* chor*]]
             [klor.multi.util :refer [usym? unpack-binder?]]))
 
 (defmacro move [roles expr]
   (when-not (and (vector? roles) (= (count roles) 2))
     (error :klor ["`move` needs a vector of exactly 2 roles: " roles]))
   (let [[src dst] roles]
-    `(at [~dst] (copy [~src ~dst] ~expr))))
+    `(narrow [~dst] (copy [~src ~dst] ~expr))))
 
 (defmacro unpack
   {:style/indent 1
