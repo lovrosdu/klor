@@ -43,3 +43,20 @@
              body
              `((unpack ~(into [] (apply concat unpacks))
                  ~@body)))))))
+
+(defn make-copy [src dst]
+  (symbol (str src '=> dst)))
+
+(defn make-move [src dst]
+  (symbol (str src '-> dst)))
+
+(defmacro scatter [[src & dsts] expr]
+  (reduce (fn [res dst] `(~(make-copy src dst) ~res)) expr dsts))
+
+(defmacro gather [[dst & srcs] & exprs]
+  (let [c1 (count srcs)
+        c2 (count exprs)]
+    (when-not (= (count srcs) (count exprs))
+      (error :klor ["`gather` needs an equal number of sources and "
+                    "expressions: " c1 " vs. " c2])))
+  `(~dst ~(mapv (fn [src expr] `(~(make-move src dst) ~expr)) srcs exprs)))
