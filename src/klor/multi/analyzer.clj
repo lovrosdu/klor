@@ -155,6 +155,9 @@
     (when-not (vector? params)
       (analysis-error ["`chor` needs a vector of parameters: " params]
                       form env))
+    (when (some '#{&} params)
+      (analysis-error ["`chor` does not support variadic arguments: " params]
+                      form env))
     (list* name (adjust-chor-signature signature) params body)))
 
 (defn analyze-chor-param [form env param]
