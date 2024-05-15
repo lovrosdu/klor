@@ -50,9 +50,11 @@
 (defn -project* [ctx {:keys [form] :as ast}]
   ;; NOTE: Similarly to `clojure.tools.analyzer.passes.emit-form/-emit-form*`,
   ;; we reattach any source metadata to the projected forms.
-  (let [proj (if (mentions? ctx ast) (-project ctx ast) `noop)]
-    (if-let [m (and (instance? clojure.lang.IObj proj) (meta form))]
-      (with-meta proj (merge m (meta proj)))
+  (let [proj (if (mentions? ctx ast) (-project ctx ast) `noop)
+        form-meta (meta form)
+        proj-meta (meta proj)]
+    (if (and (instance? clojure.lang.IObj proj) (or form-meta proj-meta))
+      (with-meta proj (merge form-meta proj-meta))
       proj)))
 
 (defn project

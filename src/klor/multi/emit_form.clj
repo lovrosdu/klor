@@ -74,13 +74,16 @@
 (defn -emit-form*
   [{:keys [form] :as ast} opts]
   (let [expr (-emit-form ast opts)
+        form-meta (meta form)
+        expr-meta (meta expr)
         type-meta (when (:types opts)
                     (merge {:mask (:mask (:env ast))}
                            (if-let [t (:rtype ast)]
                              {:rtype (render-type t)})
                            (select-keys ast [:rmentions])))]
-    (if (instance? clojure.lang.IObj expr)
-      (with-meta expr (merge (meta form) (meta expr) type-meta))
+    (if (and (instance? clojure.lang.IObj expr)
+             (or form-meta expr-meta type-meta))
+      (with-meta expr (merge form-meta expr-meta type-meta))
       expr)))
 
 (defn emit-form
