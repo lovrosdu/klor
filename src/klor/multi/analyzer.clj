@@ -218,8 +218,15 @@
     (parse-error ["Unknown var: " name] form env)))
 
 (defn special [var parser]
-  {(:name (meta var)) parser
-   var                parser})
+  (let [sym (:name (meta var))]
+    {sym                                  parser
+     ;; NOTE: Special case `klor.multi.core` which is meant to be used as a
+     ;; central namespace from which users import Klor operators. Sadly, Clojure
+     ;; does not support re-exporting imported vars and the Potemkin library we
+     ;; use in `klor.multi.core` fakes it by creating *new* vars, which are
+     ;; distinct from the ones imported from `klor.multi.specials`.
+     (symbol "klor.multi.core" (str sym)) parser
+     var                                  parser}))
 
 (def specials
   (merge (special #'narrow  #'parse-narrow)
