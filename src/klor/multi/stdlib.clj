@@ -4,7 +4,7 @@
             [klor.multi.util :refer [usym? unpack-binder?]]))
 
 (defmacro move [roles expr]
-  (when-not (and (vector? roles) (= count 2))
+  (when-not (and (vector? roles) (= (count roles) 2))
     (error :klor ["`move` needs a vector of exactly 2 roles: " roles]))
   (let [[src dst] roles]
     `(at [~dst] (copy [~src ~dst] ~expr))))
