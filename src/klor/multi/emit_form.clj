@@ -74,10 +74,14 @@
 (defn -emit-form*
   [{:keys [form] :as ast} opts]
   (let [expr (-emit-form ast opts)
-        expr (if-let [m (and (instance? clojure.lang.IObj expr) (meta form))]
-               (with-meta expr (merge m (meta expr)))
-               expr)]
-    expr))
+        type-meta (when (:types opts)
+                    (merge {:mask (:mask (:env ast))}
+                           (if-let [t (:rtype ast)]
+                             {:rtype (render-type t)})
+                           (select-keys ast [:rmentions])))]
+    (if (instance? clojure.lang.IObj expr)
+      (with-meta expr (merge (meta form) (meta expr) type-meta))
+      expr)))
 
 (defn emit-form
   {:pass-info {:walk :none :depends #{#'uniquify-locals} :compiler true}}
