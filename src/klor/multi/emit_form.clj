@@ -1,5 +1,6 @@
 (ns klor.multi.emit-form
-  (:require [clojure.tools.analyzer.passes.emit-form :as clj-emit]
+  (:require [clojure.tools.analyzer.env :as env]
+            [clojure.tools.analyzer.passes.emit-form :as clj-emit]
             [clojure.tools.analyzer.passes.jvm.emit-form :as jvm-emit]
             [clojure.tools.analyzer.passes.uniquify :refer [uniquify-locals]]
             [klor.multi.types :refer [render-type]]
@@ -81,17 +82,7 @@
 (defn emit-form
   {:pass-info {:walk :none :depends #{#'uniquify-locals} :compiler true}}
   ([ast]
-   (emit-form ast #{}))
+   (emit-form ast (:emit-form (:passes-opts (env/deref-env)))))
   ([ast opts]
    (binding [clj-emit/-emit-form* -emit-form*]
      (-emit-form* ast opts))))
-
-(defn emit-hygienic-form
-  {:pass-info {:walk :none :depends #{#'uniquify-locals} :compiler true}}
-  [ast]
-  (emit-form ast #{:hygienic}))
-
-(defn emit-sugar-form
-  {:pass-info {:walk :none :depends #{#'uniquify-locals} :compiler true}}
-  [ast]
-  (emit-form ast #{:sugar}))
