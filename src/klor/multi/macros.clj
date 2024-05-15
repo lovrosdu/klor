@@ -50,7 +50,7 @@
         (when (not (empty? def))
           (let [;; Build and analyze the chor
                 chor `(chor ~(render-type signature) ~params ~@body)
-                {mentions :rmentions :as ast} (analyze chor {:roles roles})]
+                {mentions :rmentions :as ast} (analyze chor {:env {:roles roles}})]
             (when-let [diff (not-empty (set/difference (set roles) mentions))]
               (warn ["Some role parameters are never used: " diff]))))
         (when (signature-changed? roles' signature' roles signature)

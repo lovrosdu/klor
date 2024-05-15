@@ -7,10 +7,11 @@
    [clojure.tools.analyzer.env :as env]
    [clojure.tools.analyzer.jvm :as jvm-analyzer]
    [clojure.tools.analyzer.passes :refer [schedule]]
-   [clojure.tools.analyzer.passes elide-meta source-info constant-lifter]
+   [clojure.tools.analyzer.passes.constant-lifter]
    [clojure.tools.analyzer.utils :refer [ctx dissoc-env resolve-sym mmerge]]
-   [klor.multi roles typecheck emit-form]
+   [klor.multi.emit-form]
    [klor.multi.types :refer [parse-type map-type normalize-type render-type]]
+   [klor.multi.typecheck]
    [klor.multi.specials :refer [at local copy pack unpack* chor* inst]]
    [klor.multi.util :refer [usym? unpack-binder? analysis-error]]
    [klor.util :refer [error]]))
@@ -111,7 +112,7 @@
      :form     form
      :env      env
      ;; NOTE: We preserve the binder but only for its shape and error reporting.
-     ;; The bindings are given by `:bindings`.
+     ;; The source of truth for the bindings is always `:bindings`.
      :binder   binder
      :bindings (vec bindings)
      :init     init
@@ -303,7 +304,7 @@
   ;; ignore them.
   (if (get-special form env) form (jvm-analyzer/macroexpand-1 form env)))
 
-(def default-passes
+(def analyze-passes
   #{;; Transfer the source info from the metadata to the local environment.
     #_#'clojure.tools.analyzer.passes.source-info/source-info
 
@@ -313,7 +314,7 @@
     #_#'clojure.tools.analyzer.passes.elide-meta/elide-meta
 
     ;; Propagate constness to vectors, maps and sets of constants.
-    #_#'clojure.tools.analyzer.passes.constant-lifter/constant-lift
+    #'clojure.tools.analyzer.passes.constant-lifter/constant-lift
 
     ;; Rename the `:name` field of all all `:binding` and `:local` nodes to
     ;; fresh names.
@@ -352,42 +353,44 @@
     ;; which first performs a number of refinements when possible. Other than
     ;; that, `clojure.tools.analyzer.jvm` has no substantial handling for the
     ;; above two nodes in any of its passes and always considers them an error.
-    #'clojure.tools.analyzer.passes.jvm.validate/validate
+    #_#'clojure.tools.analyzer.passes.jvm.validate/validate
 
     ;; Throw on invalid role applications.
-    #'klor.multi.roles/validate-roles
+    #_#'klor.multi.roles/validate-roles
 
     ;; Propagate role masks.
-    #'klor.multi.typecheck/propagate-masks
+    #_#'klor.multi.typecheck/propagate-masks
 
     ;; Typecheck.
     #'klor.multi.typecheck/typecheck
+
+    ;; Assert invariants after type checking.
     #'klor.multi.typecheck/sanity-check
 
     ;; Emit form.
-    #_#'klor.multi.emit-form/emit-form
-    #_#'klor.multi.emit-form/emit-hygienic-form
-    #_#'klor.multi.emit-form/emit-sugar-form})
+    #_#'klor.multi.emit-form/emit-form})
 
-(def run-passes
-  (schedule default-passes))
+(def analyze-passes*
+  (schedule analyze-passes))
 
-(defn analyze [form & {:as env}]
-  (let [bindings {#'clj-analyzer/macroexpand-1 macroexpand-1
-                  #'clj-analyzer/parse parse
-                  #'jvm-analyzer/run-passes (schedule default-passes)}]
+(defn analyze [form & {:keys [env bindings run-passes passes-opts] :as opts}]
+  (let [bindings' {#'clj-analyzer/macroexpand-1 macroexpand-1
+                   #'clj-analyzer/parse parse
+                   #'jvm-analyzer/run-passes (or run-passes analyze-passes*)}]
     (jvm-analyzer/analyze form (merge (jvm-analyzer/empty-env) env)
-                          {:bindings bindings})))
+                          {:bindings (merge bindings' bindings)
+                           :passes-opts passes-opts})))
 
-(comment
-  (defn analyze-plain
-    ([form]
-     (analyze-plain form (jvm-analyzer/empty-env)))
-    ([form env]
-     (binding [clj-analyzer/macroexpand-1 jvm-analyzer/macroexpand-1
-               clj-analyzer/parse clj-analyzer/-parse
-               clj-analyzer/create-var jvm-analyzer/create-var
-               clj-analyzer/var? var?]
-       (env/with-env (jvm-analyzer/global-env)
-         (clj-analyzer/analyze form env)))))
-  )
+(def emit-passes
+  (conj analyze-passes #'klor.multi.emit-form/emit-form))
+
+(def emit-passes*
+  (schedule emit-passes))
+
+(defn analyze+emit [form & {:keys [emit] :as opts}]
+  (let [emit (cond
+               (nil? emit) #{:sugar :types}
+               (set? emit) emit
+               :else #{emit})
+        passes-opts {:emit-form emit}]
+    (analyze form :run-passes emit-passes* :passes-opts passes-opts opts)))
