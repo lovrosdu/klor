@@ -361,7 +361,7 @@
     #_#'clojure.tools.analyzer.passes.jvm.validate/validate
 
     ;; Throw on invalid role applications.
-    #_#'klor.multi.roles/validate-roles
+    #_#'klor.multi.validate-roles/validate-roles
 
     ;; Propagate role masks.
     #_#'klor.multi.typecheck/propagate-masks

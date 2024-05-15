@@ -7,7 +7,7 @@
    [clojure.tools.analyzer.passes.jvm.validate :as jvm-validate]
    [klor.multi.types :refer [parse-type type-roles normalize-type render-type
                              substitute-roles]]
-   [klor.multi.roles :refer [validate-roles]]
+   [klor.multi.validate-roles :refer [validate-roles]]
    [klor.multi.util :refer [update-children* replace-children analysis-error]]
    [klor.util :refer [-str]]))
 

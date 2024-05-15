@@ -1,10 +1,8 @@
-(ns klor.multi.roles
+(ns klor.multi.validate-roles
   (:require [clojure.set :as set]
             [clojure.tools.analyzer.utils :refer [-source-info]]
             [klor.multi.types :refer [type-roles]]
             [klor.multi.util :refer [usym? analysis-error]]))
-
-;;; Validate Roles
 
 (defn -validate-roles [form env roles]
   (when-not (every? usym? roles)
