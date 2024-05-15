@@ -4,8 +4,7 @@
             [klor.multi.types :refer [parse-type type-roles render-type
                                       substitute-roles]]
             [klor.multi.stdlib :refer [chor]]
-            [klor.multi.util :refer [usym?]]
-            [klor.util :refer [warn error]]))
+            [klor.multi.util :refer [usym? warn error]]))
 
 (defn adjust-defchor-signature [roles type]
   (-> (update type :aux #(let [main (type-roles (assoc type :aux #{}))]

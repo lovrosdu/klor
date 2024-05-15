@@ -8,13 +8,12 @@
             [klor.multi.runtime :refer [noop send recv make-chor]]
             [klor.multi.types :refer [type-roles]]
             [klor.multi.typecheck :refer [typecheck sanity-check]]
-            [klor.multi.util :refer [usym?]]
-            [klor.util :refer [error]]))
+            [klor.multi.util :refer [usym? form-error]]))
 
 ;;; Util
 
 (defn projection-error [msg form env & {:as kvs}]
-  (error :klor/projection msg (merge {:form form} (-source-info form env) kvs)))
+  (form-error :klor/projection msg form env kvs))
 
 ;;; Role Checks
 

@@ -15,8 +15,7 @@
    [klor.multi.typecheck]
    [klor.multi.projection :as proj]
    [klor.multi.specials :refer [narrow lifting copy pack unpack* chor* inst]]
-   [klor.multi.util :refer [usym? unpack-binder? analysis-error]]
-   [klor.util :refer [error]]))
+   [klor.multi.util :refer [usym? unpack-binder? form-error]]))
 
 ;;; NOTE: The local environment's `:context` field is explicitly overriden with
 ;;; `:ctx/expr` whenever an expression is *not* in tail position with respect to
@@ -30,14 +29,19 @@
 ;;; Otherwise, the symbol is analyzed as usual and might produce a
 ;;; `:maybe-host-form` node if it doesn't resolve to a var.
 
+;;; Util
+
+(defn parse-error [msg form env & {:as kvs}]
+  (form-error :klor/parse msg form env kvs))
+
 ;;; Special Operators
 
 (defn parse-narrow [[_ roles expr :as form] env]
   (when-not (= (count form) 3)
-    (analysis-error "`narrow` needs exactly 2 arguments" form env))
+    (parse-error "`narrow` needs exactly 2 arguments" form env))
   (when-not (and (vector? roles) (not-empty roles))
-    (analysis-error ["`narrow` needs a non-empty vector of roles: " roles]
-                    form env))
+    (parse-error ["`narrow` needs a non-empty vector of roles: " roles]
+                 form env))
   {:op       :narrow
    :form     form
    :env      env
@@ -47,10 +51,10 @@
 
 (defn parse-lifting [[_ roles & body :as form] env]
   (when-not (>= (count form) 2)
-    (analysis-error "`lifting` needs at least 1 argument" form env))
+    (parse-error "`lifting` needs at least 1 argument" form env))
   (when-not (and (vector? roles) (not-empty roles))
-    (analysis-error ["`lifting` needs a non-empty vector of roles: " roles]
-                    form env))
+    (parse-error ["`lifting` needs a non-empty vector of roles: " roles]
+                 form env))
   {:op       :lifting
    :form     form
    :env      env
@@ -60,10 +64,10 @@
 
 (defn parse-copy [[_ roles expr :as form] env]
   (when-not (= (count form) 3)
-    (analysis-error "`copy` needs exactly 2 arguments" form env))
+    (parse-error "`copy` needs exactly 2 arguments" form env))
   (when-not (and (vector? roles) (= (count roles) 2))
-    (analysis-error ["`copy` needs a vector of exactly 2 roles: " roles]
-                    form env))
+    (parse-error ["`copy` needs a vector of exactly 2 roles: " roles]
+                 form env))
   {:op       :copy
    :form     form
    :env      env
@@ -74,7 +78,7 @@
 
 (defn parse-pack [[_ & exprs :as form] env]
   (when-not (>= (count form) 2)
-    (analysis-error ["`pack` needs at least 1 argument"] form env))
+    (parse-error ["`pack` needs at least 1 argument"] form env))
   {:op       :pack
    :form     form
    :env      env
@@ -92,7 +96,7 @@
 
 (defn analyze-unpack-binder [form env binder]
   (when-not (unpack-binder? binder)
-    (analysis-error ["Invalid `unpack*` binder: " binder] form env))
+    (parse-error ["Invalid `unpack*` binder: " binder] form env))
   (for [[name position] (traverse-unpack-binder binder)]
     {:op       :binding
      :form     name
@@ -104,7 +108,7 @@
 
 (defn parse-unpack* [[_ binder init & body :as form] env]
   (when-not (>= (count form) 3)
-    (analysis-error "`unpack*` needs at least 2 arguments" form env))
+    (parse-error "`unpack*` needs at least 2 arguments" form env))
   (let [init (clj-analyzer/analyze-form init (ctx env :ctx/expr))
         bindings (analyze-unpack-binder form env binder)
         locals (into {} (for [b bindings] [(:name b) (dissoc-env b)]))
@@ -131,37 +135,37 @@
 
 (defn parse-chor-args [[_ & [name & _ :as args] :as form] env]
   (when-not (>= (count form) 3)
-    (analysis-error "`chor*` needs at least 2 arguments" form env))
+    (parse-error "`chor*` needs at least 2 arguments" form env))
   (let [[name tspec params & body] (if (symbol? name) args (cons nil args))
         {:keys [ctor aux] :as signature} (parse-type tspec)]
     (when (and name (not (usym? name)))
-      (analysis-error ["`chor`'s name must be an unqualified symbol: " name]
-                      form env))
+      (parse-error ["`chor`'s name must be an unqualified symbol: " name]
+                   form env))
     (when-not signature
-      (analysis-error ["`chor`'s signature is invalid: " tspec] form env))
+      (parse-error ["`chor`'s signature is invalid: " tspec] form env))
     (when-not (= ctor :chor)
-      (analysis-error ["`chor`'s signature must be a choreography type: " tspec]
-                      form env))
+      (parse-error ["`chor`'s signature must be a choreography type: " tspec]
+                   form env))
     (when (and name (= aux :none))
-      (analysis-error ["`chor`'s auxiliary roles must be explicitly specified "
-                       "when a self-reference name is used: " tspec]
-                      form env))
+      (parse-error ["`chor`'s auxiliary roles must be explicitly specified "
+                    "when a self-reference name is used: " tspec]
+                   form env))
     (let [normalized (normalize-type signature)]
       (when-not (= signature normalized)
-        (analysis-error ["`chor`'s auxiliary part must be normalized: got "
-                         tspec ", expected " (render-type normalized)]
-                        form env)))
+        (parse-error ["`chor`'s auxiliary part must be normalized: got "
+                      tspec ", expected " (render-type normalized)]
+                     form env)))
     (when-not (vector? params)
-      (analysis-error ["`chor` needs a vector of parameters: " params]
-                      form env))
+      (parse-error ["`chor` needs a vector of parameters: " params]
+                   form env))
     (when (some '#{&} params)
-      (analysis-error ["`chor` does not support variadic arguments: " params]
-                      form env))
+      (parse-error ["`chor` does not support variadic arguments: " params]
+                   form env))
     (list* name (adjust-chor-signature signature) params body)))
 
 (defn analyze-chor-param [form env param]
   (when-not (usym? param)
-    (analysis-error ["Invalid `chor*` param: " param] form env))
+    (parse-error ["Invalid `chor*` param: " param] form env))
   {:op    :binding
    :form  param
    :env   env
@@ -195,12 +199,12 @@
 
 (defn parse-inst [[_ name roles :as form] env]
   (when-not (= (count form) 3)
-    (analysis-error "`inst` needs exactly 2 arguments" form env))
+    (parse-error "`inst` needs exactly 2 arguments" form env))
   (when-not (symbol? name)
-    (analysis-error ["`inst` needs a symbol for the name: " name] form env))
+    (parse-error ["`inst` needs a symbol for the name: " name] form env))
   (when-not (and (vector? roles) (not-empty roles))
-    (analysis-error ["`inst` needs a non-empty vector of roles: " roles]
-                    form env))
+    (parse-error ["`inst` needs a non-empty vector of roles: " roles]
+                 form env))
   (if-let [var (resolve-sym name env)]
     (if (contains? (meta var) :klor/chor)
       {:op       :inst
@@ -210,8 +214,8 @@
        :var      var
        :roles    roles
        :children []}
-      (analysis-error [name " does not name a Klor choreography"] form env))
-    (analysis-error ["Unknown var: " name] form env)))
+      (parse-error [name " does not name a Klor choreography"] form env))
+    (parse-error ["Unknown var: " name] form env)))
 
 (defn special [var parser]
   {(:name (meta var)) parser

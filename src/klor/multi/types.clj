@@ -1,7 +1,6 @@
 (ns klor.multi.types
   (:require [clojure.set :as set]
-            [klor.multi.util :refer [usym?]]
-            [klor.util :refer [error]]))
+            [klor.multi.util :refer [usym? error]]))
 
 ;;; Types
 ;;;

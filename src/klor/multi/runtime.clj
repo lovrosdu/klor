@@ -1,6 +1,6 @@
 (ns klor.multi.runtime
   (:refer-clojure :exclude [send])
-  (:require [klor.util :refer [error]]))
+  (:require [klor.multi.util :refer [error]]))
 
 (def ^:dynamic *config*
   {})

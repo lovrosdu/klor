@@ -2,16 +2,19 @@
   (:require [clojure.set :as set]
             [clojure.tools.analyzer.utils :refer [-source-info]]
             [klor.multi.types :refer [type-roles]]
-            [klor.multi.util :refer [usym? analysis-error]]))
+            [klor.multi.util :refer [usym? form-error]]))
+
+(defn validate-error [msg form env & {:as kvs}]
+  (form-error :klor/parse msg form env kvs))
 
 (defn -validate-roles [form env roles]
   (when-not (every? usym? roles)
-    (analysis-error ["Roles must be unqualified symbols: " roles] form env))
+    (validate-error ["Roles must be unqualified symbols: " roles] form env))
   (when-not (apply distinct? roles)
-    (analysis-error (str "Duplicate roles: " roles) form env))
+    (validate-error (str "Duplicate roles: " roles) form env))
   (let [diff (set/difference (set roles) (set (:roles env)))]
     (when-not (empty? diff)
-      (analysis-error (str "Unknown roles: " diff) form env))))
+      (validate-error (str "Unknown roles: " diff) form env))))
 
 (defmulti validate-roles
   {:pass-info {:walk :post}}

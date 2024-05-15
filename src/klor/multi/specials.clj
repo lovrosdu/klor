@@ -1,5 +1,5 @@
 (ns klor.multi.specials
-  (:require [klor.util :refer [warn]]))
+  (:require [klor.multi.util :refer [warn]]))
 
 (defmacro narrow [[role+] expr]
   (warn "`narrow` used outside of a choreographic context")

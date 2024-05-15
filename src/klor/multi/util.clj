@@ -1,7 +1,8 @@
 (ns klor.multi.util
-  (:require [clojure.tools.analyzer.utils :refer [-source-info]]
-            [clojure.tools.analyzer.ast :refer [update-children]]
-            [klor.util :refer [error]]))
+  (:require [clojure.tools.analyzer.ast :refer [update-children]]
+            [clojure.tools.analyzer.utils :refer [-source-info]]))
+
+;;; Clojure
 
 (defn assoc-inv [vec [k & _ :as ks] val init]
   (if (empty? ks)
@@ -14,10 +15,19 @@
 (defn usym? [x]
   (and (symbol? x) (not (namespace x))))
 
+(defn -str [& xs]
+  ;; NOTE: Clojure's `str` returns the empty string for nil, while `print-str`
+  ;; unconditionally adds spaces between arguments.
+  (apply str (replace {nil "nil"} xs)))
+
+;;; Klor
+
 (defn unpack-binder? [x]
   (and (vector? x)
        (not-empty x)
        (every? (some-fn usym? unpack-binder?) x)))
+
+;;; AST
 
 (defn update-children* [ast children f]
   (-> ast
@@ -28,5 +38,18 @@
 (defn replace-children [ast smap]
   (update-children ast #(get smap % %)))
 
-(defn analysis-error [msg form env & {:as kvs}]
-  (error :klor/analyzer msg (merge {:form form} (-source-info form env) kvs)))
+;;; Errors
+
+(defn make-message [message]
+  (if (string? message) message (apply -str message)))
+
+(defn error [tag message & {:as options}]
+  (throw (ex-info (make-message message) (merge {:tag tag} options))))
+
+(defn warn [message]
+  (binding [*out* *err*]
+    (println (str "WARNING: " (make-message message)))))
+
+(defn form-error [tag msg form env & {:as kvs}]
+  (error tag [form ": " (make-message msg)]
+         (merge {:form form} (-source-info form env) kvs)))
