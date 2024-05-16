@@ -59,3 +59,6 @@
 (defn form-error [tag msg form env & {:as kvs}]
   (error tag [form ": " (make-message msg)]
          (merge {:form form} (-source-info form env) kvs)))
+
+(defn ast-error [tag msg {:keys [raw-forms form env] :as ast} & {:as kvs}]
+  (form-error tag msg (or (first raw-forms) form) env kvs))

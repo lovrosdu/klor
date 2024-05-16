@@ -8,12 +8,12 @@
             [klor.multi.runtime :refer [noop send recv make-chor]]
             [klor.multi.types :refer [type-roles]]
             [klor.multi.typecheck :refer [typecheck sanity-check]]
-            [klor.multi.util :refer [usym? form-error]]))
+            [klor.multi.util :refer [usym? ast-error]]))
 
 ;;; Util
 
-(defn projection-error [msg form env & {:as kvs}]
-  (form-error :klor/projection msg form env kvs))
+(defn projection-error [msg ast & {:as kvs}]
+  (ast-error :klor/projection msg ast kvs))
 
 ;;; Role Checks
 
@@ -255,8 +255,8 @@
                            `(~(symbol (.getName ^Class class) (name method))
                              ~@projs))))
 
-(defmethod -project :default [ctx {:keys [op form env] :as ast}]
-  (projection-error ["Don't know how to project " op ", yet!"] form env))
+(defmethod -project :default [ctx {:keys [op] :as ast}]
+  (projection-error ["Don't know how to project " op ", yet!"] ast))
 
 ;;; Cleanup
 
