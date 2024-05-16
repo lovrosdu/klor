@@ -26,9 +26,23 @@
 (defn render-signature [roles signature]
   `(~'forall ~roles ~(render-type signature)))
 
+(defn make-projs [roles signature [params & body]]
+  (let [chor `(chor ~(render-type signature) ~params ~@body)
+        ast (analyze chor {:env {:roles roles}})]
+    [ast (map #(project ast {:role % :defchor? true}) roles)]))
+
+(defn make-expansion [name meta roles signature def]
+  (let [[ast projs] (when def (make-projs roles signature def))
+        name (vary-meta name merge `{:klor/chor '~meta})]
+    ;; NOTE: Reattach the metadata to the var (via the symbol) because `def`
+    ;; clears it. Also attach the metadata to the vector for convenience.
+    [ast (if def
+           `(def ~name ~(with-meta (vec projs) `{:klor/chor '~meta}))
+           `(declare ~name))]))
+
 (defmacro defchor
-  {:arglists '([name roles tspec] [name roles tspec & params & body])}
-  [name roles tspec & [params & body :as def]]
+  {:arglists '([name roles tspec] [name roles tspec & [params & body]])}
+  [name roles tspec & def]
   (when-not (and (vector? roles) (not-empty roles) (every? usym? roles)
                  (apply distinct? roles))
     (error :klor ["`defchor`'s roles must be given as a vector of distinct "
@@ -41,33 +55,27 @@
         ;; Set the aux sets within the new signature, if unspecified
         signature (if-let [signature (parse-type tspec)]
                     (adjust-defchor-signature roles signature)
-                    (error :klor ["Invalid `defchor` signature: " tspec]))]
+                    (error :klor ["Invalid `defchor` signature: " tspec]))
+        ;; Prepare the new metadata
+        m' {:roles roles :signature signature}]
     (try
-      (let [;; Alter the metadata so that the analyzer can see it
-            m' {:roles roles :signature signature}
-            _ (alter-meta! var merge {:klor/chor m'})]
-        (when (not (empty? def))
-          (let [;; Build, analyze and project the chor
-                chor `(chor ~(render-type signature) ~params ~@body)
-                ast (analyze chor {:env {:roles roles}})
-                mentions (:rmentions (:body ast))
-                projs (map #(project ast {:role % :defchor? true}) roles)]
-            (when-let [diff (not-empty (set/difference (set roles) mentions))]
-              (warn ["Some role parameters are never used: " diff]))
-            (when (defchor-signature-changed? roles' signature' roles signature)
-              (warn ["Signature of " var " changed:\n"
-                     "  was " (render-signature roles' signature') ",\n"
-                     "  is " (render-signature roles signature) ";\n"
-                     "make sure to recompile dependencies"]))
-            ;; NOTE: Reattach the metadata to the var (via the symbol) because
-            ;; `def` clears it. Also attach the metadata to the vector for
-            ;; convenience.
-            `(def ~(vary-meta name #(merge % `{:klor/chor '~m'}))
-               ~(with-meta (vec projs) `{:klor/chor '~m'})))))
+      ;; Alter the metadata so that the analyzer can see it
+      (alter-meta! var merge {:klor/chor m'})
+      ;; Build, analyze and project the chor, and create the expansion
+      (let [[ast expansion] (make-expansion name m' roles signature def)]
+        (when-let [mentions (when def (:rmentions (:body ast)))]
+          (when-let [diff (not-empty (set/difference (set roles) mentions))]
+            (warn ["Some role parameters are never used: " diff])))
+        (when (defchor-signature-changed? roles' signature' roles signature)
+          (warn ["Signature of " var " changed:\n"
+                 "  was " (render-signature roles' signature') ",\n"
+                 "  is " (render-signature roles signature) ";\n"
+                 "make sure to recompile dependencies"]))
+        expansion)
       (finally
         ;; NOTE: We don't want to create or modify the var during
         ;; macroexpansion, so we unconditionally roll back our changes and leave
-        ;; the job to the evaluation of the `def` form.
+        ;; the job to the evaluation of the expansion.
         (if exists?
           (alter-meta! var (constantly m))
           (ns-unmap *ns* name))))))
