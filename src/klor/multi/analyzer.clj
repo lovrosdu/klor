@@ -1,10 +1,8 @@
 (ns klor.multi.analyzer
   (:refer-clojure :exclude [macroexpand-1])
   (:require
-   [clojure.set :as set]
    [clojure.string :as str]
    [clojure.tools.analyzer :as clj-analyzer]
-   [clojure.tools.analyzer.env :as env]
    [clojure.tools.analyzer.jvm :as jvm-analyzer]
    [clojure.tools.analyzer.passes :refer [schedule]]
    [clojure.tools.analyzer.passes.constant-lifter]

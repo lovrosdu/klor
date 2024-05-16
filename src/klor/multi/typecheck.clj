@@ -191,7 +191,7 @@
         {eroles :roles :keys [ctor] :as type} (:rtype expr)]
     (when-not (= ctor :agree)
       (type-error ["Argument to `narrow` is not of agreement type: " type] ast))
-    (if-let [diff (not-empty (set/difference roles eroles))]
+    (when-let [diff (not-empty (set/difference roles eroles))]
       (type-error ["Argument to `narrow` is missing roles: " diff] ast))
     (with-type ast' (assoc type :roles roles) tenv)))
 

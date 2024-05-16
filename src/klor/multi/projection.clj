@@ -4,7 +4,6 @@
             [clojure.tools.analyzer.ast :refer [children]]
             [clojure.tools.analyzer.passes.emit-form :as clj-emit]
             [clojure.tools.analyzer.passes.jvm.emit-form :as jvm-emit]
-            [clojure.tools.analyzer.utils :refer [-source-info]]
             [klor.multi.runtime :refer [noop send recv make-chor]]
             [klor.multi.types :refer [type-roles]]
             [klor.multi.typecheck :refer [typecheck sanity-check]]
@@ -159,7 +158,7 @@
     (emit-effects [(-project* ctx test)])))
 
 (defmethod -project :case
-  [ctx {:keys [test default tests thens shift mask low high
+  [ctx {:keys [test default tests thens shift mask
                switch-type test-type skip-check?]
         :as ast}]
   (if (and (has-result-for-node? ctx test)
