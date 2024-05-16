@@ -190,7 +190,9 @@
         roles (set roles)
         {eroles :roles :keys [ctor] :as type} (:rtype expr)]
     (when-not (= ctor :agree)
-      (type-error ["Argument to `narrow` is not of agreement type: " type] ast))
+      (type-error ["Argument to `narrow` is not of agreement type: "
+                   (render-type type)]
+                  ast))
     (when-let [diff (not-empty (set/difference roles eroles))]
       (type-error ["Argument to `narrow` is missing roles: " diff] ast))
     (with-type ast' (assoc type :roles roles) tenv)))
@@ -203,11 +205,13 @@
   (let [{:keys [src dst expr] :as ast'} (-typecheck* tenv ast)
         {:keys [ctor roles] :as type} (:rtype expr)]
     (when-not (= ctor :agree)
-      (type-error ["Argument to `copy` is not of agreement type: " type] ast))
+      (type-error ["Argument to `copy` is not of agreement type: "
+                   (render-type type)]
+                  ast))
     (when-not (contains? roles src)
-      (type-error ["Argument to `copy` is missing a role: " src] ast))
+      (type-error ["Argument to `copy` is missing role " src] ast))
     (when (contains? roles dst)
-      (type-error ["Argument to `copy` already contains role: " dst] ast))
+      (type-error ["Argument to `copy` already contains role " dst] ast))
     (with-type ast' (assoc type :roles (conj roles dst)) tenv)))
 
 (defmethod -typecheck :pack [tenv ast]
@@ -279,8 +283,8 @@
 (defmethod -typecheck :inst [tenv {:keys [var roles] :as ast}]
   (let [{croles :roles :keys [signature]} (:klor/chor (meta var))]
     (when-not (= (count croles) (count roles))
-      (type-error ["`inst`'s number of roles doesn't match the choreography's"
-                   "(" var "): got " roles ", expected " croles]
+      (type-error ["`inst`'s number of roles doesn't match the choreography's "
+                   "(" (symbol var) "): got " roles ", expected " croles]
                   ast))
     (with-type ast (substitute-roles signature (zipmap croles roles)) tenv)))
 
@@ -357,7 +361,7 @@
 (defmethod -typecheck :case-test [tenv ast]
   (let [{:keys [test] :as ast'} (-typecheck* tenv ast)]
     (assert (= (:ctor (:rtype test)) :agree)
-            "`case` test constant is not of agreement type")
+            "Expected `case` test constant to be of agreement type")
     (with-type ast' (:rtype test) tenv)))
 
 (defmethod -typecheck :case-then [tenv ast]
@@ -459,7 +463,7 @@
 (defmethod -typecheck :var [tenv {:keys [env var] :as ast}]
   (when (contains? (meta var) :klor/chor)
     (type-error ["Cannot refer to a choreographic definition without "
-                 "instantiating it: " var]
+                 "instantiating it: " (symbol var)]
                 ast))
   (with-type ast (lifted-type env) tenv))
 
