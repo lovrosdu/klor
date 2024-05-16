@@ -15,7 +15,7 @@
    [klor.multi.typecheck]
    [klor.multi.projection :as proj]
    [klor.multi.specials :refer [narrow lifting copy pack unpack* chor* inst]]
-   [klor.multi.util :refer [usym? unpack-binder? form-error]]))
+   [klor.multi.util :refer [usym? unpack-binder? make-copy form-error]]))
 
 ;;; NOTE: The local environment's `:context` field is explicitly overriden with
 ;;; `:ctx/expr` whenever an expression is *not* in tail position with respect to
@@ -272,28 +272,30 @@
   (some #{form} roles))
 
 (defn parse-role-expr [[role & body :as form] env]
-  (assoc (parse-lifting `(~'lifting [~role] ~@body) env) :sugar? true))
+  (assoc (parse-lifting `(~'lifting [~role] ~@body) env)
+         :form form :sugar? true))
 
 (defn role-op [op form env]
   (and (usym? form)
        (let [roles (map symbol (str/split (name form) op))]
          (and (= (count roles) 2) (every? #(role? % env) roles) roles))))
 
-(defn parse-copy-expr [roles [_ expr] env]
-  (assoc (parse-copy `(~'copy [~@roles] ~expr) env) :sugar? true))
+(defn parse-copy-expr [roles [_ expr :as form] env]
+  (assoc (parse-copy `(~'copy [~@roles] ~expr) env) :form form :sugar? true))
 
-(defn parse-move-expr [[_ dst :as roles] [_ expr] env]
-  (assoc (parse-narrow `(~'narrow [~dst] (~'copy [~@roles] ~expr)) env)
-         :sugar? true))
+(defn parse-move-expr [[src dst] [_ expr :as form] env]
+  (assoc (parse-narrow `(~'narrow [~dst] (~(make-copy src dst) ~expr)) env)
+         :form form :sugar? true))
 
-(defn inline-inst-expr? [[name roles & exprs :as form] env]
+(defn inline-inst-expr? [[name roles & _ :as form] env]
   (when-let [var (resolve-sym name env)]
     (and (:klor/chor (meta var))
          (vector? roles)
          (every? #(role? % env) roles))))
 
 (defn parse-inline-inst-expr [[name roles & exprs :as form] env]
-  (assoc (jvm-analyzer/parse `((inst ~name ~roles) ~@exprs) env) :sugar? true))
+  (assoc (jvm-analyzer/parse `((inst ~name ~roles) ~@exprs) env)
+         :form form :sugar? true))
 
 ;;; Driver
 

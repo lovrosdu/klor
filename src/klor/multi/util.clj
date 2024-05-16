@@ -27,6 +27,12 @@
        (not-empty x)
        (every? (some-fn usym? unpack-binder?) x)))
 
+(defn make-copy [src dst]
+  (symbol (str src '=> dst)))
+
+(defn make-move [src dst]
+  (symbol (str src '-> dst)))
+
 ;;; AST
 
 (defn update-children* [ast children f]

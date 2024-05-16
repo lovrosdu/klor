@@ -1,6 +1,7 @@
 (ns klor.multi.stdlib
-  (:require [klor.multi.specials :refer [narrow copy unpack* chor*]]
-            [klor.multi.util :refer [usym? unpack-binder? error]]))
+  (:require
+   [klor.multi.specials :refer [narrow copy unpack* chor*]]
+   [klor.multi.util :refer [usym? unpack-binder? make-copy make-move error]]))
 
 (defmacro move [roles expr]
   (when-not (and (vector? roles) (= (count roles) 2))
@@ -42,12 +43,6 @@
              body
              `((unpack ~(into [] (apply concat unpacks))
                  ~@body)))))))
-
-(defn make-copy [src dst]
-  (symbol (str src '=> dst)))
-
-(defn make-move [src dst]
-  (symbol (str src '-> dst)))
 
 (defmacro scatter [[src & dsts] expr]
   (reduce (fn [res dst] `(~(make-copy src dst) ~res)) expr dsts))
