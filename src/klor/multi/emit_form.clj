@@ -15,8 +15,9 @@
              '_))
           [] bindings))
 
-;;; NOTE: We use `mapv` throughout the code to force the evaluation of sequences
-;;; within the context of the dynamic binding of `clj-emit/-emit-form*`.
+;;; NOTE: We use `doall` and `mapv` throughout the code to force the realization
+;;; of sequences within the context of our dynamic binding of
+;;; `clj-emit/-emit-form*`.
 
 (defmulti -emit-form (fn [{:keys [op] :as ast} opts] op))
 
@@ -38,7 +39,7 @@
     `(~'copy [~src ~dst] ~(clj-emit/-emit-form* expr opts))))
 
 (defmethod -emit-form :pack [{:keys [exprs]} opts]
-  `(~'pack ~@(mapv #(clj-emit/-emit-form* % opts) exprs)))
+  `(~'pack ~@(doall (map #(clj-emit/-emit-form* % opts) exprs))))
 
 (defmethod -emit-form :unpack [{:keys [binder bindings init body]} opts]
   ;; NOTE: Recreate the binder from the bindings in case we are emitting
@@ -62,7 +63,7 @@
   (if (and (:sugar opts) sugar?)
     (let [{:keys [op name roles]} fn]
       (assert (= op :inst) "Expected a child `:inst` node when `sugar?` is set")
-      `(~name ~roles ~@(mapv #(clj-emit/-emit-form* % opts) args)))
+      `(~name ~roles ~@(doall (map #(clj-emit/-emit-form* % opts) args))))
     (jvm-emit/-emit-form ast opts)))
 
 (defmethod -emit-form :default [ast opts]
