@@ -1,6 +1,7 @@
 (ns klor.multi.runtime
   (:refer-clojure :exclude [send])
-  (:require [klor.multi.util :refer [error]]))
+  (:require [klor.multi.types :refer [type-roles render-type]]
+            [klor.multi.util :refer [error]]))
 
 (def ^:dynamic *config*
   {})
@@ -36,3 +37,22 @@
      (config-fn (merge *config*
                        {:locators (mapv #(get locators %) locator-idxs)})
                 (get chor role-idx)))))
+
+(defn play-role [{:keys [role] :as config} chor & args]
+  (let [{:keys [roles signature]} (:klor/chor (meta chor))
+        role-idx (.indexOf roles role)
+        {:keys [params]} signature]
+    (when (= role-idx -1)
+      (error :klor ["Role " role " is not part of the choreography"]))
+    (when (some #(not= (:ctor %) :agree) params)
+      (error :klor ["Cannot invoke the projection of a choreography that has "
+                    "parameters of non-agreement type: "
+                    (render-type signature)]))
+    (let [params' (keep #(when (contains? (type-roles %) role) %) params)
+          c1 (count args)
+          c2 (count params')]
+      (when-not (= c1 c2)
+        (error :klor ["Wrong number of arguments to the projection for " role
+                      ": got " c1 ", expected " c2])))
+    (binding [*config* config]
+      (apply (get chor role-idx) args))))
