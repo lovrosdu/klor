@@ -408,7 +408,7 @@
 
 (defn analyze+emit [form & {:keys [emit] :as opts}]
   (let [emit (cond
-               (nil? emit) #{:sugar :types}
+               (nil? emit) #{:sugar :type-meta}
                (set? emit) emit
                :else #{emit})
         passes-opts {:emit-form emit}]

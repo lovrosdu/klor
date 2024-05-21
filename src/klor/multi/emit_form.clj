@@ -76,7 +76,7 @@
   (let [expr (-emit-form ast opts)
         form-meta (meta form)
         expr-meta (meta expr)
-        type-meta (when (:types opts)
+        type-meta (when (:type-meta opts)
                     (merge {:mask (:mask (:env ast))}
                            (if-let [t (:rtype ast)]
                              {:rtype (render-type t)})
