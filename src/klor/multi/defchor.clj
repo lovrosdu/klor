@@ -30,7 +30,7 @@
 (defn make-projs [roles signature [params & body]]
   (let [chor `(chor ~(render-type signature) ~params ~@body)
         ast (analyze chor {:env {:roles roles}})]
-    [ast (map #(project ast {:role % :defchor? true}) roles)]))
+    [ast (map #(project ast {:role %}) roles)]))
 
 (defn make-expansion [name meta roles signature def]
   (let [[ast projs] (when def (make-projs roles signature def))

@@ -133,13 +133,11 @@
     (emit-let [[binder' (-project* ctx init)]] [(-project* ctx body)])
     (emit-let [] [(-project* ctx init) (-project* ctx body)])))
 
-(defmethod -project :chor
-  [{:keys [defchor?] :as ctx} {:keys [local params body] :as ast}]
-  (let [ctx (assoc ctx :defchor? false)
-        params' (filter (partial has-result-for-node? ctx) params)
+(defmethod -project :chor [ctx {:keys [top-level local params body] :as ast}]
+  (let [params' (filter (partial has-result-for-node? ctx) params)
         f `(fn ~@(when local [(:form local)]) [~@(map :form params')]
              ~(-project* ctx body))]
-    (if defchor? f `(make-chor ~f))))
+    (if top-level f `(make-chor ~f))))
 
 (defmethod -project :inst
   [{:keys [role] :as ctx} {:keys [name roles env] :as ast}]
