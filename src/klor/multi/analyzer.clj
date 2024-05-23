@@ -7,7 +7,7 @@
    [clojure.tools.analyzer.passes :refer [schedule]]
    [clojure.tools.analyzer.passes.constant-lifter]
    [clojure.tools.analyzer.passes.jvm.emit-form]
-   [clojure.tools.analyzer.utils :refer [ctx dissoc-env resolve-sym mmerge]]
+   [clojure.tools.analyzer.utils :refer [ctx dissoc-env resolve-sym]]
    [klor.multi.emit-form]
    [klor.multi.types :refer [parse-type map-type normalize-type render-type]]
    [klor.multi.typecheck]
@@ -110,7 +110,7 @@
   (let [init (clj-analyzer/analyze-form init (ctx env :ctx/expr))
         bindings (analyze-unpack-binder form env binder)
         locals (into {} (for [b bindings] [(:name b) (dissoc-env b)]))
-        env' (mmerge env {:locals locals})]
+        env' (update env :locals merge locals)]
     {:op       :unpack
      :form     form
      :env      env
@@ -181,7 +181,7 @@
         locals (into (if name {name (dissoc-env local)} {})
                      (for [b bindings] [(:name b) (dissoc-env b)]))
         loop-id (gensym "loop_")
-        env' (into (mmerge env {:locals locals})
+        env' (into (update env :locals merge locals)
                    {:context :ctx/return
                     :loop-id loop-id
                     :loop-locals (count params)})]

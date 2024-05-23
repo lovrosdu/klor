@@ -3,7 +3,7 @@
    [clojure.set :as set]
    [clojure.core.match :refer [match]]
    [clojure.tools.analyzer.ast :as ast :refer [children update-children]]
-   [clojure.tools.analyzer.utils :refer [mmerge]]
+   [clojure.tools.analyzer.env :as env]
    [clojure.tools.analyzer.passes.jvm.validate :as jvm-validate]
    [klor.multi.types :refer
     [parse-type type-roles normalize-type render-type substitute-roles]]
@@ -121,7 +121,7 @@
         k2 (set (keys (:locals env)))]
     (assert (= k1 k2) (str "The typing and local environments have differing "
                            "keys: got " k1 ", expected " k2)))
-  (update-in ast [:env :locals] mmerge locals))
+  (update-in ast [:env :locals] (partial merge-with merge) locals))
 
 (defn with-type
   {:style/indent 0}
