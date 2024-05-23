@@ -1,6 +1,7 @@
 (ns klor.multi.defchor
   (:require [clojure.set :as set]
-            [klor.multi.analyzer :refer [analyze adjust-chor-signature project]]
+            [klor.multi.analyzer :refer [adjust-chor-signature]]
+            [klor.multi.driver :refer [analyze project]]
             [klor.multi.types :refer [parse-type type-roles render-type
                                       substitute-roles]]
             [klor.multi.stdlib :refer [chor]]

@@ -3,6 +3,7 @@
   (:require
    [clojure.string :as str]
    [clojure.tools.analyzer :as clj-analyzer]
+   [clojure.tools.analyzer.env :as env]
    [clojure.tools.analyzer.jvm :as jvm-analyzer]
    [clojure.tools.analyzer.passes :refer [schedule]]
    [clojure.tools.analyzer.passes.constant-lifter]
@@ -295,7 +296,7 @@
   (assoc (jvm-analyzer/parse `((inst ~name ~roles) ~@exprs) env)
          :form form :sugar? true))
 
-;;; Driver
+;;; Entry Points
 
 (defn parse [[op & _ :as form] env]
   (if-let [parser (get-special form env)]
@@ -320,115 +321,27 @@
   ;; ignore them.
   (if (get-special form env) form (jvm-analyzer/macroexpand-1 form env)))
 
-(def analyze-passes
-  #{;; Transfer the source info from the metadata to the local environment.
-    #_#'clojure.tools.analyzer.passes.source-info/source-info
-
-    ;; Elide metadata given by `clojure.tools.analyzer.passes.elide-meta/elides`
-    ;; or `*compiler-options*`. `clojure.tools.analyzer.jvm/analyze` provides a
-    ;; default set of elides for `fn` and `reify` forms.
-    #_#'clojure.tools.analyzer.passes.elide-meta/elide-meta
-
-    ;; Propagate constness to vectors, maps and sets of constants.
-    #'clojure.tools.analyzer.passes.constant-lifter/constant-lift
-
-    ;; Rename the `:name` field of all all `:binding` and `:local` nodes to
-    ;; fresh names.
-    ;;
-    ;; Requires `:uniquify/uniquify-env` to be true within the pass options in
-    ;; order to also apply the same changes to the `:binding` nodes in local
-    ;; environments (under `[:env :locals]`). However, keys of the local
-    ;; environment are never touched and remain the original names (stored under
-    ;; the `:form` field).
-    #_#'clojure.tools.analyzer.passes.uniquify/uniquify-locals
-
-    ;; Elide superfluous `:do`, `:let` and `:try` nodes when possible.
-    #_#'clojure.tools.analyzer.passes.trim/trim
-
-    ;; Refine `:host-field`, `:host-call` and `:host-interop` nodes to
-    ;; `:instance-field`, `:instance-call`, `:static-field` and `:static-call`
-    ;; when possible. This happens when the class can be determined statically.
-    ;; In that case, the named field or method must exist otherwise an error is
-    ;; thrown. If the class cannot be determined statically, the node is
-    ;; kept as or converted to a `:host-interop` node.
-    ;;
-    ;; Also refine `:var` and `:maybe-class` nodes to `:const` when possible.
-    #_#'clojure.tools.analyzer.passes.jvm.analyze-host-expr/analyze-host-expr
-
-    ;; Refine `:invoke` nodes to `:keyword-invoke`, `:prim-invoke`,
-    ;; `:protocol-invoke` and `:instance?` nodes when possible.
-    #_#'clojure.tools.analyzer.passes.jvm.classify-invoke/classify-invoke
-
-    ;; Validate a number of JVM-specific things. Most importantly, throw on
-    ;; encountering `:maybe-class` or `:maybe-host-form` nodes. Such nodes are
-    ;; produced for non-namespaced and namespaced symbols (respectively) that do
-    ;; not resolve to a var or a class.
-    ;;
-    ;; This pass depends on
-    ;; `clojure.tools.analyzer.passes.jvm.analyze-host-expr/analyze-host-expr`
-    ;; which first performs a number of refinements when possible. Other than
-    ;; that, `clojure.tools.analyzer.jvm` has no substantial handling for the
-    ;; above two nodes in any of its passes and always considers them an error.
-    #_#'clojure.tools.analyzer.passes.jvm.validate/validate
-
-    ;; Throw on invalid role applications.
-    #_#'klor.multi.validate-roles/validate-roles
-
-    ;; Propagate lifting masks.
-    #_#'klor.multi.typecheck/propagate-masks
-
-    ;; Typecheck.
-    #'klor.multi.typecheck/typecheck
-
-    ;; Assert invariants after type checking.
-    #'klor.multi.typecheck/sanity-check
-
-    ;; Emit form.
-    #_#'klor.multi.emit-form/emit-form})
-
-(def analyze-passes*
-  (schedule analyze-passes))
-
-(defn analyze [form & {:keys [env bindings run-passes passes-opts] :as opts}]
-  (let [{:keys [roles]} env
-        bindings' {#'clj-analyzer/macroexpand-1 macroexpand-1
-                   #'clj-analyzer/parse parse
-                   #'jvm-analyzer/run-passes (or run-passes analyze-passes*)}]
+(defn analyze* [form & {:keys [env run-passes passes-opts] :as opts}]
+  ;; NOTE: We set the environment, the parser and the macroexpander
+  ;; unconditionally. We set `run-passes` only if explicitly provided (and
+  ;; non-nil), or use `identity` if not already set. We set `passes-opts` only
+  ;; if explicitly provided, or use `{}` if not already set.
+  (let [env' (merge (jvm-analyzer/empty-env) env)
+        bindings (merge {#'clj-analyzer/parse parse
+                         #'clj-analyzer/macroexpand-1 macroexpand-1}
+                        (cond
+                          run-passes {#'jvm-analyzer/run-passes run-passes}
+                          (not env/*env*) {#'jvm-analyzer/run-passes identity}
+                          :else nil))
+        {:keys [roles]} env]
     (assert (and (seqable? roles) (not-empty roles) (every? usym? roles))
             "Roles must be a non-empty seq of unqualified symbols")
-    (jvm-analyzer/analyze form (merge (jvm-analyzer/empty-env) env)
-                          {:bindings (merge bindings' bindings)
-                           :passes-opts passes-opts})))
-
-(def emit-passes
-  (conj analyze-passes #'klor.multi.emit-form/emit-form))
-
-(def emit-passes*
-  (schedule emit-passes))
-
-(defn analyze+emit [form & {:keys [emit] :as opts}]
-  (let [emit (cond
-               (nil? emit) #{:sugar :type-meta}
-               (set? emit) emit
-               :else #{emit})
-        passes-opts {:emit-form emit}]
-    (analyze form :run-passes emit-passes* :passes-opts passes-opts opts)))
-
-(def project-passes
-  #{#'klor.multi.projection/cleanup
-    #'clojure.tools.analyzer.passes.jvm.emit-form/emit-form})
-
-(def project-passes*
-  (schedule project-passes))
-
-(defn project [ast & {:keys [cleanup] :as opts}]
-  (-> (proj/project ast (select-keys opts [:role :defchor?]))
-      (jvm-analyzer/analyze
-       (jvm-analyzer/empty-env)
-       {:bindings {#'jvm-analyzer/run-passes project-passes*}
-        :passes-opts {:cleanup {:style (or cleanup :aggressive)}}})))
-
-(defn analyze+project [form & {:keys [env] :as opts}]
-  (let [{:keys [roles]} env
-        ast (analyze form opts)]
-    (zipmap roles (map #(project ast (merge opts {:role %})) roles))))
+    ;; NOTE: `jvm-analyzer/analyzer` merges `:passes-opts` in a way where the
+    ;; options in the environment win. We do the opposite here, since we want
+    ;; the passed in `passes-opts` to always override the current ones.
+    (if env/*env*
+      (env/with-env
+        (merge-with merge (env/deref-env) {:passes-opts passes-opts})
+        (jvm-analyzer/analyze form env' {:bindings bindings :passes-opts {}}))
+      (jvm-analyzer/analyze form env' {:bindings bindings
+                                       :passes-opts (or passes-opts {})}))))
