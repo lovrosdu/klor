@@ -5,9 +5,11 @@
    [clojure.tools.analyzer.passes.constant-lifter]
    [clojure.tools.analyzer.passes.jvm.emit-form]
    [klor.multi.analyzer :refer [analyze*]]
-   [klor.multi.emit-form]
+   [klor.multi.emit-form :refer [emit-form]]
    [klor.multi.typecheck]
    [klor.multi.projection :as proj]))
+
+;;; Main
 
 (def analyze-passes
   #{;; Transfer the source info from the metadata to the local environment.
@@ -81,20 +83,6 @@
 (defn analyze [form & {:as opts}]
   (analyze* form :run-passes analyze-passes* opts))
 
-(def emit-passes
-  (conj analyze-passes #'klor.multi.emit-form/emit-form))
-
-(def emit-passes*
-  (schedule emit-passes))
-
-(defn analyze+emit [form & {:keys [emit] :as opts}]
-  (let [emit (cond
-               (nil? emit) #{:sugar :type-meta}
-               (set? emit) emit
-               :else #{emit})
-        passes-opts {:emit-form emit}]
-    (analyze form :run-passes emit-passes* :passes-opts passes-opts opts)))
-
 (def project-passes
   #{#'klor.multi.projection/cleanup
     #'clojure.tools.analyzer.passes.jvm.emit-form/emit-form})
@@ -103,13 +91,23 @@
   (schedule project-passes))
 
 (defn project [ast & {:keys [cleanup] :as opts}]
-  (-> (proj/project ast opts)
-      (jvm-analyzer/analyze
-       (jvm-analyzer/empty-env)
-       {:bindings {#'jvm-analyzer/run-passes project-passes*}
-        :passes-opts {:cleanup {:style (or cleanup :aggressive)}}})))
+  (let [cleanup' {:style (or cleanup :aggressive)}
+        opts' {:bindings {#'jvm-analyzer/run-passes project-passes*}
+               :passes-opts {:cleanup cleanup'}}]
+    (jvm-analyzer/analyze (proj/project ast opts) (jvm-analyzer/empty-env)
+                          (merge-with merge opts' opts))))
+
+;;; Utility
+
+(defn analyze+emit [form & {:keys [emit] :as opts}]
+  (let [emit (cond
+               (nil? emit) #{:sugar :type-meta}
+               (set? emit) emit
+               :else #{emit})
+        ast (analyze form opts)]
+    [ast (emit-form ast emit)]))
 
 (defn analyze+project [form & {:keys [env] :as opts}]
   (let [{:keys [roles]} env
         ast (analyze form opts)]
-    (zipmap roles (map #(project ast (merge opts {:role %})) roles))))
+    [ast (zipmap roles (map #(project ast (merge opts {:role %})) roles))]))
