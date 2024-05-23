@@ -201,6 +201,21 @@
   (let [{:keys [body] :as ast'} (-typecheck* tenv ast)]
     (with-type ast' (:rtype body) tenv)))
 
+(defmethod -typecheck :agree [tenv ast]
+  (let [{:keys [exprs] :as ast'} (-typecheck* tenv ast)]
+    (when-let [expr (first (filter #(not= (:ctor (:rtype %)) :agree) exprs))]
+      (type-error ["Argument to `agree!` must be of agreement type: "
+                   (render-type (:rtype expr))]
+                  expr))
+    (let [rolesets (map #(:roles (:rtype %)) exprs)
+          counts (apply merge-with + (map #(zipmap % (repeat 1)) rolesets))
+          non-unique (set (for [[role count] counts :when (>= count 2)] role))]
+      (when (not-empty non-unique)
+        (type-error ["Arguments to `agree!` mention some roles more than once: "
+                     non-unique]
+                    ast))
+      (with-type ast' {:ctor :agree :roles (apply set/union rolesets)} tenv))))
+
 (defmethod -typecheck :copy [tenv ast]
   (let [{:keys [src dst expr] :as ast'} (-typecheck* tenv ast)
         {:keys [ctor roles] :as type} (:rtype expr)]

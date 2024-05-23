@@ -93,15 +93,21 @@
 ;;; Choreographic
 
 (defmethod -project :narrow [ctx {:keys [expr] :as ast}]
-  ;; We are 100% mentioned in `expr` but we might not be in the result of the
-  ;; `narrow`, even if we are in the result of `expr`. IOW, `narrow` narrows the
-  ;; location of `expr`'s result.
+  ;; NOTE: If we have a result for the `narrow`, then we also have a result for
+  ;; `expr`. The converse is not true: we might not have a result for `narrow`,
+  ;; *even* if we have a result for `expr`, because the point of `narrow` is to
+  ;; restrict the location of `expr`'s result.
   (if (has-result-for-node? ctx ast)
     (-project* ctx expr)
     (emit-effects [(-project* ctx expr)])))
 
 (defmethod -project :lifting [ctx {:keys [body] :as ast}]
   (-project* ctx body))
+
+(defmethod -project :agree [ctx {:keys [exprs] :as ast}]
+  ;; NOTE: There is at most one expression in `exprs` for which we have a
+  ;; result, and its result is also the result of the `agree!`.
+  (project-vals ctx exprs first))
 
 (defmethod -project :copy [ctx {:keys [src dst expr env] :as ast}]
   (cond

@@ -13,7 +13,8 @@
    [klor.multi.types :refer [parse-type map-type normalize-type render-type]]
    [klor.multi.typecheck]
    [klor.multi.projection :as proj]
-   [klor.multi.specials :refer [narrow lifting copy pack unpack* chor* inst]]
+   [klor.multi.specials
+    :refer [narrow agree! lifting copy pack unpack* chor* inst]]
    [klor.multi.util :refer [usym? unpack-binder? make-copy form-error]]))
 
 ;;; NOTE: The local environment's `:context` field is explicitly overriden with
@@ -60,6 +61,15 @@
    :roles    roles
    :body     (clj-analyzer/analyze-body body env)
    :children [:body]})
+
+(defn parse-agree! [[_ & exprs :as form] env]
+  (when-not (>= (count form) 2)
+    (parse-error "`agree!` needs at least 1 argument" form env))
+  {:op       :agree
+   :form     form
+   :env      env
+   :exprs    (mapv (clj-analyzer/analyze-in-env (ctx env :ctx/expr)) exprs)
+   :children [:exprs]})
 
 (defn parse-copy [[_ roles expr :as form] env]
   (when-not (= (count form) 3)
@@ -234,7 +244,8 @@
          (special #'pack    #'parse-pack)
          (special #'unpack* #'parse-unpack*)
          (special #'chor*   #'parse-chor*)
-         (special #'inst    #'parse-inst)))
+         (special #'inst    #'parse-inst)
+         (special #'agree!  #'parse-agree!)))
 
 (defn get-special [form env]
   ;; Assuming that the operator position is a symbol, we first check if it names

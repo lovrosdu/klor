@@ -10,6 +10,10 @@
   (warn "`lifting` used outside of a choreographic context")
   &form)
 
+(defmacro agree! [[role+] expr+]
+  (warn "`agree!` used outside of a choreographic context")
+  &form)
+
 (defmacro copy [[src dst] expr]
   (warn "`copy` used outside of a choreographic context")
   &form)
