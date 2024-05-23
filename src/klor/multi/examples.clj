@@ -148,3 +148,30 @@
   @(simulate-chor exchange-key-1 5 23 4 3)
   @(simulate-chor exchange-key-2 5 23 4 3)
   )
+
+;;; Game
+
+(defn make-game []
+  {:moves 0 :black 0 :white 0})
+
+(defn make-move [player]
+  {player (inc (rand-int 10))})
+
+(defn apply-move [game move]
+  (merge-with + game move {:moves 1}))
+
+(defn final? [{:keys [moves black white] :as game}]
+  (and (>= moves 5) (not= black white)))
+
+(defn winner [game]
+  (key (apply max-key val game)))
+
+(defchor play-game [A B] (-> #{A B} A B #{A B}) [game p1 p2]
+  (let [game (apply-move game (A=>B (A (make-move p1))))]
+    (if (final? game)
+      (winner game)
+      (play-game [B A] game p2 p1))))
+
+(comment
+  @(simulate-chor play-game (make-game) :black :white)
+  )
