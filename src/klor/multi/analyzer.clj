@@ -183,12 +183,12 @@
                      (for [b bindings] [(:name b) (dissoc-env b)]))
         loop-id (gensym "loop_")
         env' (into (update env :locals merge locals)
-                   {:context :ctx/return
-                    :loop-id loop-id
+                   {:context     :ctx/return
+                    :loop-id     loop-id
                     :loop-locals (count params)})]
-    (merge {:op   :chor
-            :form form
-            :env  env
+    (merge {:op      :chor
+            :form    form
+            :env     env
             :loop-id loop-id}
            (and name {:local local})
            {:signature signature

@@ -21,27 +21,30 @@
 
 (defmulti -emit-form (fn [{:keys [op] :as ast} opts] op))
 
-(defmethod -emit-form :narrow [{:keys [roles expr sugar?]} opts]
+(defmethod -emit-form :narrow [{:keys [roles expr sugar?] :as ast} opts]
   (if (and (:sugar opts) sugar?)
     (let [{expr' :expr :keys [op src dst]} expr]
       (assert (= op :copy) "Expected a child `:copy` node when `sugar?` is set")
       `(~(symbol (str src "->" dst)) ~(clj-emit/-emit-form* expr' opts)))
     `(~'narrow ~roles ~(clj-emit/-emit-form* expr opts))))
 
-(defmethod -emit-form :lifting [{:keys [roles body sugar?]} opts]
+(defmethod -emit-form :lifting [{:keys [roles body sugar?] :as ast} opts]
   (if (and (:sugar opts) sugar?)
     `(~(first roles) ~(clj-emit/-emit-form* body opts))
     `(~'lifting ~roles ~(clj-emit/-emit-form* body opts))))
 
-(defmethod -emit-form :copy [{:keys [src dst expr sugar?]} opts]
+(defmethod -emit-form :agree [{:keys [exprs] :as ast} opts]
+  `(~'agree! ~@(doall (map #(clj-emit/-emit-form* % opts) exprs))))
+
+(defmethod -emit-form :copy [{:keys [src dst expr sugar?] :as ast} opts]
   (if (and (:sugar opts) sugar?)
     `(~(symbol (str src "=>" dst)) ~(clj-emit/-emit-form* expr opts))
     `(~'copy [~src ~dst] ~(clj-emit/-emit-form* expr opts))))
 
-(defmethod -emit-form :pack [{:keys [exprs]} opts]
+(defmethod -emit-form :pack [{:keys [exprs] :as ast} opts]
   `(~'pack ~@(doall (map #(clj-emit/-emit-form* % opts) exprs))))
 
-(defmethod -emit-form :unpack [{:keys [binder bindings init body]} opts]
+(defmethod -emit-form :unpack [{:keys [binder bindings init body] :as ast} opts]
   ;; NOTE: Recreate the binder from the bindings in case we are emitting
   ;; hygienically, since the `:binder` field is *not* uniquified.
   `(~'unpack*
@@ -49,14 +52,14 @@
     ~(clj-emit/-emit-form* init opts)
     ~(clj-emit/-emit-form* body opts)))
 
-(defmethod -emit-form :chor [{:keys [local signature params body]} opts]
+(defmethod -emit-form :chor [{:keys [local signature params body] :as ast} opts]
   `(~'chor*
     ~@(when local [(clj-emit/-emit-form* local opts)])
     ~(render-type signature)
     ~(mapv #(clj-emit/-emit-form* % opts) params)
     ~(clj-emit/-emit-form* body opts)))
 
-(defmethod -emit-form :inst [{:keys [name roles]} opts]
+(defmethod -emit-form :inst [{:keys [name roles] :as ast} opts]
   `(~'inst ~name ~roles))
 
 (defmethod -emit-form :invoke [{:keys [fn args sugar?] :as ast} opts]
@@ -79,7 +82,7 @@
         expr-meta (meta expr)
         type-meta (when (:type-meta opts)
                     (merge {:mask (:mask (:env ast))}
-                           (if-let [t (:rtype ast)]
+                           (when-let [t (:rtype ast)]
                              {:rtype (render-type t)})
                            (select-keys ast [:rmentions])))]
     (if (and (instance? clojure.lang.IObj expr)

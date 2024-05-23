@@ -62,7 +62,7 @@
                :after #{#'sanity-check}
                :compiler true}}
   ([ast]
-   (-project (:project (:passes-opts (env/deref-env))) ast))
+   (project ast (:project (:passes-opts (env/deref-env)))))
   ([ast & {:keys [role] :as ctx}]
    (assert (usym? role) "Role must be an unqualified symbol")
    (assert (:rtype ast) "AST is missing type information")
