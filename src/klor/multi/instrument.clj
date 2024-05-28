@@ -5,7 +5,7 @@
             [klor.multi.emit-form :refer [emit-form]]
             [klor.multi.specials :refer [narrow lifting inst]]
             [klor.multi.stdlib :refer [scatter gather]]
-            [klor.multi.types :refer [render-type substitute-roles]]
+            [klor.multi.types :refer [render-type replace-roles]]
             [klor.multi.typecheck :refer [typecheck sanity-check]]
             [klor.multi.util :refer [usym? error warn]]))
 
@@ -62,8 +62,8 @@
 (defn defchor-signature-changed? [roles signature roles' signature']
   (and roles roles'
        (or (not= (count roles) (count roles'))
-           (not= (substitute-roles signature (zipmap roles (range)))
-                 (substitute-roles signature' (zipmap roles' (range)))))))
+           (not= (replace-roles signature (zipmap roles (range)))
+                 (replace-roles signature' (zipmap roles' (range)))))))
 
 (defn render-signature [roles signature]
   `(~'forall ~roles ~(render-type signature)))

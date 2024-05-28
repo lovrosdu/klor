@@ -6,7 +6,7 @@
    [clojure.tools.analyzer.env :as env]
    [clojure.tools.analyzer.passes.jvm.validate :as jvm-validate]
    [klor.multi.types :refer
-    [parse-type type-roles normalize-type render-type substitute-roles]]
+    [parse-type type-roles normalize-type render-type replace-roles]]
    [klor.multi.validate-roles :refer [validate-roles]]
    [klor.multi.util :refer
     [update-children* replace-children -str ast-error]]))
@@ -301,7 +301,7 @@
       (type-error ["`inst`'s number of roles doesn't match the choreography's "
                    "(" (symbol var) "): got " roles ", expected " croles]
                   ast))
-    (with-type ast (substitute-roles signature (zipmap croles roles)) tenv)))
+    (with-type ast (replace-roles signature (zipmap croles roles)) tenv)))
 
 ;;; Binding & Control Flow
 

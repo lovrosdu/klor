@@ -153,7 +153,7 @@
                             :else `(~'| ~@aux))))))
       (postwalk-type type)))
 
-(defn substitute-roles [type subs]
+(defn replace-roles [type subs]
   (let [sub #(get subs % %)]
     (-> (fn [{:keys [ctor] :as type}]
           (case ctor

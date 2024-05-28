@@ -3,8 +3,8 @@
             [klor.multi.analyzer :refer [adjust-chor-signature]]
             [klor.multi.driver :refer [analyze project]]
             [klor.multi.emit-form :refer [emit-form]]
-            [klor.multi.types :refer [parse-type type-roles render-type
-                                      substitute-roles]]
+            [klor.multi.types
+             :refer [parse-type type-roles render-type replace-roles]]
             [klor.multi.stdlib :refer [chor]]
             [klor.multi.opts :refer [*opts*]]
             [klor.multi.util :refer [usym? warn error]]))
@@ -23,8 +23,8 @@
 (defn defchor-signature-changed? [roles' signature' roles signature]
   (and roles' roles
        (or (not= (count roles') (count roles))
-           (not= (substitute-roles signature' (zipmap roles' (range)))
-                 (substitute-roles signature (zipmap roles (range)))))))
+           (not= (replace-roles signature' (zipmap roles' (range)))
+                 (replace-roles signature (zipmap roles (range)))))))
 
 (defn render-signature [roles signature]
   `(~'forall ~roles ~(render-type signature)))
