@@ -29,7 +29,7 @@
     (binding [*config* config]
       (apply f args))))
 
-(defn make-chor
+(defn make-proj
   ([f]
    (config-fn *config* f))
   ([chor role-idx locator-idxs]

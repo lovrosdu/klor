@@ -4,7 +4,7 @@
             [clojure.tools.analyzer.ast :refer [children]]
             [clojure.tools.analyzer.passes.emit-form :as clj-emit]
             [clojure.tools.analyzer.passes.jvm.emit-form :as jvm-emit]
-            [klor.multi.runtime :refer [noop send recv make-chor]]
+            [klor.multi.runtime :refer [noop send recv make-proj]]
             [klor.multi.types :refer [type-roles]]
             [klor.multi.typecheck :refer [typecheck sanity-check]]
             [klor.multi.util :refer [usym? ast-error]]))
@@ -137,13 +137,13 @@
   (let [params' (filter (partial has-result-for-node? ctx) params)
         f `(fn ~@(when local [(:form local)]) [~@(map :form params')]
              ~(-project* ctx body))]
-    (if top-level f `(make-chor ~f))))
+    (if top-level f `(make-proj ~f))))
 
 (defmethod -project :inst
   [{:keys [role] :as ctx} {:keys [name roles env] :as ast}]
   (let [idx (.indexOf roles role)
         idxs (mapv #(.indexOf (:roles env) %) roles)]
-    `(make-chor ~name ~idx ~idxs)))
+    `(make-proj ~name ~idx ~idxs)))
 
 ;;; Binding & Control Flow
 
