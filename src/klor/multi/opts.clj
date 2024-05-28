@@ -2,7 +2,8 @@
   (:require [clojure.tools.analyzer.jvm :refer [empty-env macroexpand-all]]))
 
 (def ^:dynamic *opts*
-  {:instrument {:agreement false :instantiation false}})
+  {:debug {:expand-chor false}
+   :instrument {:agreement false :instantiation false}})
 
 (defmacro with-opts [map & body]
   (binding [*opts* (eval map)]

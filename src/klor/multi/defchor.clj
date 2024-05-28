@@ -2,6 +2,7 @@
   (:require [clojure.set :as set]
             [klor.multi.analyzer :refer [adjust-chor-signature]]
             [klor.multi.driver :refer [analyze project]]
+            [klor.multi.emit-form :refer [emit-form]]
             [klor.multi.types :refer [parse-type type-roles render-type
                                       substitute-roles]]
             [klor.multi.stdlib :refer [chor]]
@@ -38,9 +39,10 @@
         name (vary-meta name merge `{:klor/chor '~meta})]
     ;; NOTE: Reattach the metadata to the var (via the symbol) because `def`
     ;; clears it. Also attach the metadata to the vector for convenience.
-    [ast (if def
-           `(def ~name ~(with-meta (vec projs) `{:klor/chor '~meta}))
-           `(declare ~name))]))
+    [ast (cond
+           (get-in *opts* [:debug :expand-chor]) `'~(emit-form ast #{:sugar})
+           def `(def ~name ~(with-meta (vec projs) `{:klor/chor '~meta}))
+           :else `(declare ~name))]))
 
 (defmacro defchor
   {:arglists '([name roles tspec] [name roles tspec & [params & body]])}
