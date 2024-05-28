@@ -5,6 +5,7 @@
             [klor.multi.types :refer [parse-type type-roles render-type
                                       substitute-roles]]
             [klor.multi.stdlib :refer [chor]]
+            [klor.multi.opts :refer [*opts*]]
             [klor.multi.util :refer [usym? warn error]]))
 
 (defn adjust-defchor-signature [roles type]
@@ -29,7 +30,7 @@
 
 (defn make-projs [roles signature [params & body]]
   (let [chor `(chor ~(render-type signature) ~params ~@body)
-        ast (analyze chor {:env {:roles roles}})]
+        ast (analyze chor {:env {:roles roles} :passes-opts *opts*})]
     [ast (map #(project ast {:role %}) roles)]))
 
 (defn make-expansion [name meta roles signature def]

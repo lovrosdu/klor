@@ -6,6 +6,7 @@
    [clojure.tools.analyzer.passes.jvm.emit-form]
    [klor.multi.analyzer :refer [analyze*]]
    [klor.multi.emit-form :refer [emit-form]]
+   [klor.multi.instrument]
    [klor.multi.typecheck]
    [klor.multi.projection :as proj]))
 
@@ -68,11 +69,17 @@
     ;; Propagate lifting masks.
     #_#'klor.multi.typecheck/propagate-masks
 
-    ;; Typecheck.
+    ;; Type check.
     #'klor.multi.typecheck/typecheck
 
     ;; Assert invariants after type checking.
     #'klor.multi.typecheck/sanity-check
+
+    ;; Potentially instrument the code with dynamic checks.
+    #'klor.multi.instrument/instrument
+
+    ;; Type check again after instrumenting.
+    #'klor.multi.instrument/typecheck-again
 
     ;; Emit form.
     #_#'klor.multi.emit-form/emit-form})
