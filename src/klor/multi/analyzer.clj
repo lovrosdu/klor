@@ -10,7 +10,8 @@
    [clojure.tools.analyzer.passes.jvm.emit-form]
    [clojure.tools.analyzer.utils :refer [ctx dissoc-env resolve-sym]]
    [klor.multi.emit-form]
-   [klor.multi.types :refer [parse-type map-type normalize-type render-type]]
+   [klor.multi.types
+    :refer [parse-type postwalk-type normalize-type render-type]]
    [klor.multi.typecheck]
    [klor.multi.projection :as proj]
    [klor.multi.specials
@@ -138,7 +139,7 @@
         (case ctor
           (:agree :tuple) type
           :chor (update type :aux #(if (= % :none) #{} %))))
-      (map-type type)
+      (postwalk-type type)
       ;; NOTE: Preserve the top-level aux set.
       (assoc :aux aux)))
 

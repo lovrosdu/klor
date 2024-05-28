@@ -113,12 +113,12 @@
   (or (parse-type tspec)
       (parse-error ["Unrecognized type: " tspec] tspec)))
 
-(defn map-type [f {:keys [ctor] :as type}]
+(defn postwalk-type [f {:keys [ctor] :as type}]
   (case ctor
     :agree (f type)
-    :tuple (f (update type :elems #(mapv (partial map-type f) %)))
-    :chor (-> (update type :params #(mapv (partial map-type f) %))
-              (update :ret (partial map-type f))
+    :tuple (f (update type :elems #(mapv (partial postwalk-type f) %)))
+    :chor (-> (update type :params #(mapv (partial postwalk-type f) %))
+              (update :ret (partial postwalk-type f))
               f)))
 
 (defn type-roles [type]
@@ -128,7 +128,7 @@
           :tuple (apply set/union (:elems type))
           :chor (let [{:keys [params ret aux]} type]
                   (apply set/union (if (= aux :none) #{} aux) ret params))))
-      (map-type type)))
+      (postwalk-type type)))
 
 (defn normalize-type [type]
   (-> (fn [{:keys [ctor] :as type}]
@@ -138,7 +138,7 @@
                   (let [main (type-roles (assoc type :aux #{}))]
                     (update type :aux #(set/difference % main)))
                   type)))
-      (map-type type)))
+      (postwalk-type type)))
 
 (defn render-type [type]
   (-> (fn [{:keys [ctor] :as type}]
@@ -151,7 +151,7 @@
                     ~@(cond (= aux :none) nil
                             (empty? aux) `(~'| 0)
                             :else `(~'| ~@aux))))))
-      (map-type type)))
+      (postwalk-type type)))
 
 (defn substitute-roles [type subs]
   (let [sub #(get subs % %)]
@@ -162,4 +162,4 @@
             :chor (if (not= (:aux type) :none)
                     (update type :aux #(set (replace subs %)))
                     type)))
-        (map-type type))))
+        (postwalk-type type))))
