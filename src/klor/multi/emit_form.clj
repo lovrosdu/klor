@@ -15,16 +15,16 @@
              '_))
           [] bindings))
 
-;;; NOTE: We use `doall` and `mapv` throughout the code to force the realization
-;;; of sequences within the context of our dynamic binding of
-;;; `clj-emit/-emit-form*`.
+;;; NOTE: We use `doall` and `mapv` throughout the code to force evaluation to
+;;; occur within the context of our dynamic binding of `clj-emit/-emit-form*`.
 
 (defmulti -emit-form (fn [{:keys [op] :as ast} opts] op))
 
 (defmethod -emit-form :narrow [{:keys [roles expr sugar?] :as ast} opts]
-  (if (and (:sugar opts) sugar?)
-    (let [{expr' :expr :keys [op src dst]} expr]
-      (assert (= op :copy) "Expected a child `:copy` node when `sugar?` is set")
+  ;; NOTE: We expect a child `:copy` node if `:sugar?` is set, but analyzer
+  ;; passes might rewrite the AST so that that's no longer the case.
+  (if (and (:sugar opts) sugar? (= (:op expr) :copy))
+    (let [{expr' :expr :keys [src dst]} expr]
       `(~(symbol (str src "->" dst)) ~(clj-emit/-emit-form* expr' opts)))
     `(~'narrow ~roles ~(clj-emit/-emit-form* expr opts))))
 
@@ -63,9 +63,10 @@
   `(~'inst ~name ~roles))
 
 (defmethod -emit-form :invoke [{:keys [fn args sugar?] :as ast} opts]
-  (if (and (:sugar opts) sugar?)
-    (let [{:keys [op name roles]} fn]
-      (assert (= op :inst) "Expected a child `:inst` node when `sugar?` is set")
+  ;; NOTE: We expect a child `:copy` node if `:sugar?` is set, but analyzer
+  ;; passes might rewrite the AST so that that's no longer the case.
+  (if (and (:sugar opts) sugar? (= (:op fn) :inst))
+    (let [{:keys [name roles]} fn]
       `(~name ~roles ~@(doall (map #(clj-emit/-emit-form* % opts) args))))
     (jvm-emit/-emit-form ast opts)))
 
