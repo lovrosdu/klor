@@ -1,13 +1,13 @@
 (ns klor.multi.defchor
-  (:require [clojure.set :as set]
-            [klor.multi.analyzer :refer [adjust-chor-signature]]
-            [klor.multi.driver :refer [analyze project]]
-            [klor.multi.emit-form :refer [emit-form]]
-            [klor.multi.types
-             :refer [parse-type type-roles render-type replace-roles]]
-            [klor.multi.stdlib :refer [chor]]
-            [klor.multi.opts :refer [*opts*]]
-            [klor.multi.util :refer [usym? warn error]]))
+  (:require
+   [clojure.set :as set]
+   [klor.multi.analyzer :refer [adjust-chor-signature]]
+   [klor.multi.driver :refer [analyze project]]
+   [klor.multi.emit-form :refer [emit-form]]
+   [klor.multi.types :refer [parse-type type-roles render-type replace-roles]]
+   [klor.multi.stdlib :refer [chor]]
+   [klor.multi.opts :refer [*opts*]]
+   [klor.multi.util :refer [usym? warn error]]))
 
 (defn adjust-defchor-signature [roles type]
   (-> (update type :aux #(let [main (type-roles (assoc type :aux #{}))]
@@ -74,7 +74,7 @@
           (warn ["Signature of " var " changed:\n"
                  "  was " (render-signature roles' signature') ",\n"
                  "  is " (render-signature roles signature) ";\n"
-                 "make sure to recompile dependencies"]))
+                 "make sure to recompile dependents"]))
         expansion)
       (finally
         ;; NOTE: We don't want to create or modify the var during
