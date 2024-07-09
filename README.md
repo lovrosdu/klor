@@ -1,6 +1,8 @@
 # Klor: Choreographies in Clojure
 
-![Role visualization demo](./role-visualization.png)
+<p align="center">
+  <img src="./klor.png" title="Klor" alt="Klor">
+</p>
 
 ## Setup
 
