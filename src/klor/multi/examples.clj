@@ -277,3 +277,27 @@
     @(simulate-chor kvs-custom-double [:put :secret 42] primary backup1 backup2)
     @(simulate-chor kvs-custom-double [:get :secret] primary backup1 backup2))
   )
+
+;;; Mergesort
+
+(defchor ms-merge [A B C] (-> B C A) [l r]
+  (if (B=>C (B=>A (B (not-empty l))))
+    (if (C=>B (C=>A (C (not-empty r))))
+      (B (let [[head & tail] l]
+           (if (B=>C (B=>A (B (< head (C->B (C (first r)))))))
+             (A (cons (B->A head) (ms-merge [A B C] tail r)))
+             (A (cons (C->A (C (first r))) (ms-merge [A B C] l (C (next r))))))))
+      (B->A l))
+    (C->A r)))
+
+(defchor mergesort [A B C] (-> A A) [seq]
+  (A (if (A=>C (A=>B (= (count seq) 1)))
+       seq
+       (let [[l r] (split-at (quot (count seq) 2) seq)]
+         (ms-merge [A B C]
+                   (mergesort [B C A] (A->B l))
+                   (mergesort [C A B] (A->C r)))))))
+
+(comment
+  @(simulate-chor mergesort [7 3 4 5 1 0 9 8 6 2])
+  )
