@@ -1,5 +1,6 @@
 (ns klor.multi.examples
-  (:require [clojure.string :as str]
+  (:require [clojure.core.match :refer [match]]
+            [clojure.string :as str]
             [klor.multi.core :refer :all]
             [klor.multi.simulator :refer [simulate-chor]])
   (:import java.time.LocalDate))
@@ -193,4 +194,86 @@
 
 (comment
   @(simulate-chor play-game (make-game) :black :white)
+  )
+
+;;; Key-value Store
+
+(defn handle-req! [req store]
+  (match req
+    [:put k v] (do (swap! store assoc k v) v)
+    [:get k] (get @store k nil)))
+
+(defchor kvs [C S] (-> C S #{C S}) [req store]
+  (let [r (S=>C (S (handle-req! (C->S req) store)))]
+    (agree! (narrow [C] r) (narrow [S] r))))
+
+(comment
+  (let [store (atom {})]
+    @(simulate-chor kvs [:put :secret 42] store)
+    @(simulate-chor kvs [:get :secret] store))
+  )
+
+;;; Replicated Key-value Store
+
+(defchor kvs-replicated [C S B] (-> C S B #{C S}) [req primary backup]
+  (let [req (S=>B (C->S req))]
+    (B (handle-req! req backup))
+    (B->S (B :ack))
+    (S=>C (S (handle-req! req primary)))))
+
+(comment
+  (let [primary (atom {})
+        backup (atom {})]
+    @(simulate-chor kvs-replicated [:put :secret 42] primary backup)
+    @(simulate-chor kvs-replicated [:get :secret] primary backup))
+  )
+
+;;; Higher-Order Key-value Store
+
+(defchor kvs-custom [C S B1 B2] (-> C S B1 B2 (-> S B1 B2 S) #{C S})
+  [req primary backup1 backup2 backup-chor]
+  (let [req (C->S req)]
+    (backup-chor req backup1 backup2)
+    (S=>C (S (handle-req! req primary)))))
+
+(defchor kvs-custom-null [C S B1 B2] (-> C S #{C S} | B1 B2) [req primary]
+  (kvs-custom [C S B1 B2] req primary (B1 nil) (B2 nil)
+              (chor (-> S B1 B2 S) [_ _ _] (S nil))))
+
+(comment
+  (let [primary (atom {})]
+    @(simulate-chor kvs-custom-null [:put :secret 42] primary)
+    @(simulate-chor kvs-custom-null [:get :secret] primary))
+  )
+
+(defchor kvs-custom-single [C S B1 B2] (-> C S B1 #{C S}) [req primary backup1]
+  (kvs-custom [C S B1 B2] req primary backup1 (B2 nil)
+              (chor (-> S B1 B2 S) [req backup1 _]
+                (let [req (S->B1 req)]
+                  (B1 (handle-req! req backup1))
+                  (B1->S (B1 :ack))))))
+
+(comment
+  (let [primary (atom {})
+        backup (atom {})]
+    @(simulate-chor kvs-custom-single [:put :secret 42] primary backup)
+    @(simulate-chor kvs-custom-single [:get :secret] primary backup))
+  )
+
+(defchor kvs-custom-double [C S B1 B2] (-> C S B1 B2 #{C S})
+  [req primary backup1 backup2]
+  (kvs-custom [C S B1 B2] req primary backup1 backup2
+              (chor (-> S B1 B2 S) [req backup1 backup2]
+                (let [req (S=>B2 (S=>B1 req))]
+                  (B1 (handle-req! req backup1))
+                  (B2 (handle-req! req backup2))
+                  (B1->S (B1 :ack))
+                  (B2->S (B2 :ack))))))
+
+(comment
+  (let [primary (atom {})
+        backup1 (atom {})
+        backup2 (atom {})]
+    @(simulate-chor kvs-custom-double [:put :secret 42] primary backup1 backup2)
+    @(simulate-chor kvs-custom-double [:get :secret] primary backup1 backup2))
   )
