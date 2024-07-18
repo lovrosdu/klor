@@ -17,6 +17,25 @@
   @(simulate-chor simple-2 123)
   )
 
+;;; Share
+
+(defchor share [A B] (-> A B) [x]
+  (if (A=>B (A (even? x)))
+    (B (println "It's even!"))
+    (B (println "It's odd!"))))
+
+;;; Remote Apply
+
+(defchor remote-apply [A B] (-> A B A) [x f]
+  (B->A (f (A->B x))))
+
+;;; Remote Map
+
+(defchor remote-map [A B] (-> A B A) [xs f]
+  (if (A=>B (A (seq xs)))
+    (A (cons (remote-apply [A B] (first xs) f) (remote-map [A B] (next xs) f)))
+    (A nil)))
+
 ;;; Ping-Pong
 
 (defchor ping-pong-1 [A B] (-> A [A B]) [n]
