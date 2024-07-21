@@ -2,7 +2,6 @@
   (:refer-clojure :exclude [send])
   (:require [clojure.tools.analyzer.env :as env]
             [clojure.tools.analyzer.ast :refer [children]]
-            [clojure.tools.analyzer.passes.emit-form :as clj-emit]
             [clojure.tools.analyzer.passes.jvm.emit-form :as jvm-emit]
             [klor.multi.runtime :refer [noop send recv make-proj]]
             [klor.multi.types :refer [type-roles]]
@@ -193,7 +192,7 @@
   ;; NOTE: We let `emit-form` recursively emit the whole `fn`, i.e. all of its
   ;; methods, including their parameters and bodies, because `fn` is type
   ;; checked as homogeneous code that has to be the same at all mentioned roles!
-  (clj-emit/emit-form ast))
+  (jvm-emit/emit-form ast))
 
 (defmethod -project :invoke [ctx {fn' :fn :keys [args] :as ast}]
   (project-vals ctx (cons fn' args) list*))
@@ -204,10 +203,10 @@
 ;;; References
 
 (defmethod -project :local [ctx ast]
-  (clj-emit/emit-form ast))
+  (jvm-emit/emit-form ast))
 
 (defmethod -project :var [ctx ast]
-  (clj-emit/emit-form ast))
+  (jvm-emit/emit-form ast))
 
 (defmethod -project :the-var [ctx ast]
   (jvm-emit/emit-form ast))
@@ -234,10 +233,10 @@
 ;;; Constants
 
 (defmethod -project :const [ctx ast]
-  (clj-emit/emit-form ast))
+  (jvm-emit/emit-form ast))
 
 (defmethod -project :quote [ctx ast]
-  (clj-emit/emit-form ast))
+  (jvm-emit/emit-form ast))
 
 (defmethod -project :with-meta [ctx {:keys [expr meta] :as ast}]
   ;; NOTE: The expression is evaluated before its metadata.
