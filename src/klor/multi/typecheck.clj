@@ -557,7 +557,11 @@
 ;;; Host Interop
 
 (defmethod -typecheck :new [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
+  (let [;; NOTE: Type check the class argument in an empty lexical environment,
+        ;; the same way `tools.analyzer` analyzes it.
+        ast' (-typecheck* (assoc tenv :locals {}) ast [:class])
+        ast'' (-typecheck* tenv ast' [:args])]
+    (typecheck-homogeneous-op tenv (lifted-type env) ast'')))
 
 (defmethod -typecheck :host-interop [tenv {:keys [env] :as ast}]
   (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
