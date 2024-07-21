@@ -300,9 +300,12 @@
 
 (defn inline-inst-expr? [[name roles & _ :as form] env]
   (when-let [var (resolve-sym name env)]
-    (and (:klor/chor (meta var))
-         (vector? roles)
-         (every? #(role? % env) roles))))
+    (and (vector? roles)
+         (every? #(role? % env) roles)
+         (or (:klor/chor (meta var))
+             (parse-error ["Trying to invoke a choreographic definition but "
+                           (symbol var) " doesn't name a choreography"]
+                          form env)))))
 
 (defn parse-inline-inst-expr [[name roles & exprs :as form] env]
   (assoc (jvm-analyzer/parse `((inst ~name ~roles) ~@exprs) env)
