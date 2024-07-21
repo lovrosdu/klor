@@ -88,11 +88,9 @@
       (when-not (= c1 c2)
         (error :klor ["Wrong number of arguments to the choreography: got " c1
                       ", expected " c2])))
-    (->> roles
-         (map #(spawn-role (wrap-channels {:role %} roles channels) chor
-                           (project-args % args params)))
-         ;; NOTE: Ensure that all roles have been spawned before waiting.
-         doall
-         (map deref)
-         (zipmap roles)
-         future)))
+    (let [ps (->> roles
+                  (map #(spawn-role (wrap-channels {:role %} roles channels)
+                                    chor (project-args % args params)))
+                  ;; NOTE: Ensure all roles have been spawned before waiting.
+                  doall)]
+      (delay (zipmap roles (map deref ps))))))
