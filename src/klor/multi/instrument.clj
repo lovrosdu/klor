@@ -4,7 +4,7 @@
             [klor.multi.analyzer :refer [analyze*]]
             [klor.multi.emit-form :refer [emit-form]]
             [klor.multi.specials :refer [narrow lifting inst]]
-            [klor.multi.stdlib :refer [scatter gather]]
+            [klor.multi.stdlib :refer [bcast gather]]
             [klor.multi.types :refer [render-type replace-roles]]
             [klor.multi.typecheck :refer [typecheck sanity-check]]
             [klor.multi.util :refer [usym? error warn]]))
@@ -42,17 +42,17 @@
            vals# (~role (apply vector ~sym
                                (gather [~@roles] ~@(map make-narrow others))))]
        (lifting [~@roles]
-         (when-not (scatter [~@roles] (~role (agree? vals#)))
-           (agreement-error '~expr (scatter [~@roles] vals#))))
+         (when-not (bcast [~@roles] (~role (agree? vals#)))
+           (agreement-error '~expr (bcast [~@roles] vals#))))
        ~sym)))
 
 (defmacro verify-agreement-decentralized [roles expr]
   (let [sym (gensym "expr")
-        make-scatter (fn [role] `(scatter [~role ~@(remove #{role} roles)]
-                                          (narrow [~role] ~sym)))]
+        make-bcast (fn [role] `(bcast [~role ~@(remove #{role} roles)]
+                                      (narrow [~role] ~sym)))]
     `(let [~sym ~expr]
        (lifting [~@roles]
-         (let [vals# ~(mapv make-scatter roles)]
+         (let [vals# ~(mapv make-bcast roles)]
            (when-not (agree? vals#)
              (agreement-error '~expr vals#))))
        ~sym)))

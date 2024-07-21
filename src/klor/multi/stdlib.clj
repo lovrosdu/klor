@@ -1,6 +1,6 @@
 (ns klor.multi.stdlib
   (:require
-   [klor.multi.specials :refer [narrow copy unpack* chor*]]
+   [klor.multi.specials :refer [narrow copy pack unpack* chor*]]
    [klor.multi.util :refer [usym? unpack-binder? make-copy make-move error]]))
 
 (defmacro move [roles expr]
@@ -44,8 +44,17 @@
              `((unpack ~(into [] (apply concat unpacks))
                  ~@body)))))))
 
-(defmacro scatter [[src & dsts] expr]
+(defmacro bcast [[src & dsts] expr]
   (reduce (fn [res dst] `(~(make-copy src dst) ~res)) expr dsts))
+
+(defmacro scatter [[src & dsts] & exprs]
+  (let [c1 (count dsts)
+        c2 (count exprs)]
+    (when-not (= (count dsts) (count exprs))
+      (error :klor ["`scatter` needs an equal number of destinations and "
+                    " expressions: " c1 " vs. " c2])))
+  `(pack ~@(for [[dst expr] (map vector dsts exprs)]
+             `(~(make-move src dst) ~expr))))
 
 (defmacro gather [[dst & srcs] & exprs]
   (let [c1 (count srcs)
