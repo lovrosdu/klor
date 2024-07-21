@@ -172,13 +172,13 @@
       [:err [arg _]] (err-fn arg)
       [:ok args] (replace-children ast (zipmap asts args)))))
 
-(defn typecheck-homogeneous-op
+(defn typecheck-agreement-op
   ([tenv type {:keys [children] :as ast}]
-   (typecheck-homogeneous-op tenv type ast children))
+   (typecheck-agreement-op tenv type ast children))
   ([tenv type ast children]
    (letfn [(err [arg]
              (type-error
-              ["Argument must be an agreement subtype of its non-choreography "
+              ["Argument must be an agreement subtype of its agreement "
                "operator's type: got " (:form arg) " of type "
                (render-type (:rtype arg)) ", expected subtype of "
                (render-type type)]
@@ -425,7 +425,7 @@
     (with-type ast''' ltype tenv)))
 
 (defmethod -typecheck :throw [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
+  (typecheck-agreement-op tenv (lifted-type env) (-typecheck* tenv ast)))
 
 ;;; Functions & Invocation
 
@@ -468,7 +468,7 @@
       ;; The operator is of agreement type: the types of the arguments must be
       ;; of that same agreement type
       :agree
-      (typecheck-homogeneous-op tenv type ast' [:args])
+      (typecheck-agreement-op tenv type ast' [:args])
       ;; The operator is a choreography: the types of the arguments must match
       ;; the types of their respective parameters
       :chor
@@ -561,22 +561,22 @@
         ;; the same way `tools.analyzer` analyzes it.
         ast' (-typecheck* (assoc tenv :locals {}) ast [:class])
         ast'' (-typecheck* tenv ast' [:args])]
-    (typecheck-homogeneous-op tenv (lifted-type env) ast'')))
+    (typecheck-agreement-op tenv (lifted-type env) ast'')))
 
 (defmethod -typecheck :host-interop [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
+  (typecheck-agreement-op tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :instance-field [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
+  (typecheck-agreement-op tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :instance-call [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
+  (typecheck-agreement-op tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :static-field [tenv {:keys [env] :as ast}]
   (with-type ast (lifted-type env) tenv))
 
 (defmethod -typecheck :static-call [tenv {:keys [env] :as ast}]
-  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
+  (typecheck-agreement-op tenv (lifted-type env) (-typecheck* tenv ast)))
 
 (defmethod -typecheck :default [tenv {:keys [op] :as ast}]
   (type-error ["Don't know how to typecheck " op ", yet!"] ast))
