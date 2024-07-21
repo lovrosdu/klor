@@ -68,7 +68,7 @@
   (if (and (:sugar opts) sugar? (= (:op fn) :inst))
     (let [{:keys [name roles]} fn]
       `(~name ~roles ~@(doall (map #(clj-emit/-emit-form* % opts) args))))
-    (jvm-emit/-emit-form ast opts)))
+    (clj-emit/-emit-form ast opts)))
 
 ;;; NOTE: We intercept the handling of certain JVM-specific nodes because their
 ;;; implementations don't do a good job of recursing through the
