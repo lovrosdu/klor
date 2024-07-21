@@ -19,10 +19,11 @@
 ;;; The AST also has to be type checked again because the macro can expand to
 ;;; arbitrary code. This goes not just for the AST produced on the fly but for
 ;;; the whole AST, because both the type and/or the mentions can change and have
-;;; to be recomputed. This is especially important for the verification of
-;;; agreement parameters, since the checks injected into the body can
-;;; technically widen the set of mentioned roles (although generally it is silly
-;;; for a top-level choreography not to already mention all of its roles).
+;;; to be propagated upward. This is especially important for the verification
+;;; of agreement parameters, since the checks injected into the body can
+;;; technically widen the set of its mentioned roles if not all roles are
+;;; mentioned (although generally it is silly for a top-level choreography's
+;;; body not to already mention all of its roles).
 
 ;;; Agreement Verification
 

@@ -264,7 +264,7 @@
           ast'' (assoc ast' :bindings bindings')
           ;; Update the typing environment
           tenv' (extend-tenv tenv bindings')
-          ;; Typecheck the body
+          ;; Type check the body
           {:keys [body] :as ast'''} (-typecheck* tenv' ast'' [:body])]
       ;; Update the node's type
       (with-type ast''' (:rtype body) tenv))))
@@ -294,7 +294,7 @@
           tenv' (extend-tenv tenv (concat (and local [local']) params'))
           ;; Add a recur block
           tenv'' (add-recur-block tenv' sparams ret)
-          ;; Typecheck the body
+          ;; Type check the body
           {:keys [body] :as ast''} (-typecheck* tenv'' ast' [:body])
           {type :rtype mentions :rmentions} body]
       (when-not (type= ret type)
@@ -330,7 +330,7 @@
         [tenv' bindings'] (typecheck-let-bindings tenv bindings)
         ;; Update the node's bindings
         ast' (assoc ast :bindings bindings')
-        ;; Typecheck the body
+        ;; Type check the body
         {:keys [body] :as ast''} (-typecheck* tenv' ast' [:body])]
     (with-type ast'' (:rtype body) tenv)))
 
@@ -437,7 +437,7 @@
         ast' (cond-> ast local (assoc :local local'))
         ;; Update the typing environment, if necessary
         tenv' (cond-> tenv local (extend-tenv [local']))
-        ;; Typecheck each method
+        ;; Type check each method
         ast'' (-typecheck* tenv' ast' [:methods])]
     (with-type ast'' ltype tenv)))
 
@@ -453,11 +453,11 @@
         tenv'' (add-recur-block tenv' (repeat (count params) ltype) ltype)
         ;; Restrict the body to only ever mention a specific agreement type
         tenv''' (restrict-type tenv'' ltype)
-        ;; Typecheck the body
+        ;; Type check the body
         {:keys [body] :as ast''} (-typecheck* tenv''' ast' [:body])
         {:keys [ctor] :as type} (:rtype body)]
     (assert (type= type ltype)
-            "Expected `fn`'s return type to be equal to its own type")
+            "Expected `fn`'s body's return type to be equal to the lifted type")
     (with-type ast'' type tenv)))
 
 (defmethod -typecheck :invoke [tenv ast]

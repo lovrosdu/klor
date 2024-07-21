@@ -63,7 +63,7 @@
   `(~'inst ~name ~roles))
 
 (defmethod -emit-form :invoke [{:keys [fn args sugar?] :as ast} opts]
-  ;; NOTE: We expect a child `:copy` node if `:sugar?` is set, but analyzer
+  ;; NOTE: We expect a child `:inst` node if `:sugar?` is set, but analyzer
   ;; passes might rewrite the AST so that that's no longer the case.
   (if (and (:sugar opts) sugar? (= (:op fn) :inst))
     (let [{:keys [name roles]} fn]
