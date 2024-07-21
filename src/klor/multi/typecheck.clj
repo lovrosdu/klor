@@ -172,6 +172,19 @@
       [:err [arg _]] (err-fn arg)
       [:ok args] (replace-children ast (zipmap asts args)))))
 
+(defn typecheck-homogeneous-op
+  ([tenv type {:keys [children] :as ast}]
+   (typecheck-homogeneous-op tenv type ast children))
+  ([tenv type ast children]
+   (letfn [(err [arg]
+             (type-error
+              ["Argument must be an agreement subtype of its non-choreography "
+               "operator's type: got " (:form arg) " of type "
+               (render-type (:rtype arg)) ", expected subtype of "
+               (render-type type)]
+              ast))]
+     (with-type (ensure-type-match tenv type ast children err) type tenv))))
+
 (defn extend-tenv [tenv bindings]
   (update tenv :locals into
           (for [{:keys [form] :as b} bindings]
@@ -383,6 +396,37 @@
   (let [{:keys [then] :as ast'} (-typecheck* tenv ast)]
     (with-type ast' (:rtype then) tenv)))
 
+(defmethod -typecheck :try [tenv {:keys [env] :as ast}]
+  (let [ltype (lifted-type env)
+        ;; Restrict all children to only ever mention a specific agreement type
+        tenv' (add-fn-type tenv ltype)
+        ;; Type check the children
+        ast' (-typecheck* tenv' ast)]
+    (assert (apply type= ltype (map :rtype (children ast')))
+            (str "Expected `try`'s children's return types to be equal to "
+                 "the lifted type"))
+    (with-type ast' ltype tenv)))
+
+(defmethod -typecheck :catch [tenv {:keys [env local] :as ast}]
+  ;; NOTE: Our `tenv` inherits the `fn-type` set up by `try`.
+  (let [ltype (lifted-type env)
+        {:keys [class local] :as ast'} (-typecheck* tenv ast [:class])
+        ;; Infer the type of the binding
+        local' (with-type local ltype tenv)
+        ;; Update the node's local
+        ast'' (assoc ast' :local local')
+        ;; Update the typing environment
+        tenv' (extend-tenv tenv [local'])
+        ;; Type check the body
+        {:keys [body] :as ast'''} (-typecheck* tenv' ast'' [:body])]
+    (assert (apply type= ltype (map :rtype (children ast''')))
+            (str "Expected `catch`'s children's return types to be equal to "
+                 "the lifted type"))
+    (with-type ast''' ltype tenv)))
+
+(defmethod -typecheck :throw [tenv {:keys [env] :as ast}]
+  (typecheck-homogeneous-op tenv (lifted-type env) (-typecheck* tenv ast)))
+
 ;;; Functions & Invocation
 
 (defmethod -typecheck :fn [tenv {:keys [env local] :as ast}]
@@ -415,19 +459,6 @@
     (assert (type= type ltype)
             "Expected `fn`'s return type to be equal to its own type")
     (with-type ast'' type tenv)))
-
-(defn typecheck-homogeneous-op
-  ([tenv type {:keys [children] :as ast}]
-   (typecheck-homogeneous-op tenv type ast children))
-  ([tenv type ast children]
-   (letfn [(err [arg]
-             (type-error
-              ["Argument must be an agreement subtype of its non-choreography "
-               "operator's type: got " (:form arg) " of type "
-               (render-type (:rtype arg)) ", expected subtype of "
-               (render-type type)]
-              ast))]
-     (with-type (ensure-type-match tenv type ast children err) type tenv))))
 
 (defmethod -typecheck :invoke [tenv ast]
   (let [;; Use `fn'` so that we don't shadow `fn`.

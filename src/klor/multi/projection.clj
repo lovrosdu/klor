@@ -178,6 +178,15 @@
             ~switch-type ~test-type ~skip-check?)
     (emit-effects [(-project* ctx test)])))
 
+(defmethod -project :try [ctx ast]
+  (jvm-emit/emit-form ast))
+
+(defmethod -project :catch [ctx ast]
+  (jvm-emit/emit-form ast))
+
+(defmethod -project :throw [ctx {:keys [exception] :as ast}]
+  (project-vals ctx [exception] (fn [projs] `(throw ~@projs))))
+
 ;;; Functions & Invocation
 
 (defmethod -project :fn [ctx ast]
