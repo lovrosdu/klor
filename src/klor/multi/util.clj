@@ -78,3 +78,10 @@
 
 (defmacro virtual-thread [& body]
   `(virtual-thread-call (fn [] ~@body)))
+
+(defn virtual-thread-call* [f]
+  ;; NOTE: Capture the currently active dynamic bindings.
+  (.. Thread (ofVirtual) (unstarted (bound-fn [] (f)))))
+
+(defmacro virtual-thread* [& body]
+  `(virtual-thread-call* (fn [] ~@body)))
