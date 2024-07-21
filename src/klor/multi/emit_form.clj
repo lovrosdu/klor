@@ -70,6 +70,49 @@
       `(~name ~roles ~@(doall (map #(clj-emit/-emit-form* % opts) args))))
     (jvm-emit/-emit-form ast opts)))
 
+;;; NOTE: We intercept the handling of certain JVM-specific nodes because their
+;;; implementations don't do a good job of recursing through the
+;;; `clj-emit/-emit-form*` dynamic variable and instead hardcode the use of
+;;; `jvm-emit/-emit-form`. This is a problem since it prevents emission of
+;;; choreographic nodes nested within the JVM-specific nodes, as they won't be
+;;; recognized by `tools.analyzer.jvm`'s `-emit-form` and will cause an error.
+;;;
+;;; Our own implementations here are just copy-pasted and have
+;;; `jvm-emit/-emit-form` replaced with `clj-emit/-emit-form*`.
+
+(defmethod -emit-form :catch
+  [{:keys [class local body]} opts]
+  `(catch ~(clj-emit/-emit-form* class opts) ~(clj-emit/-emit-form* local opts)
+     ~(clj-emit/-emit-form* body opts)))
+
+(defmethod -emit-form :case
+  [{:keys [test default tests thens shift mask low high
+           switch-type test-type skip-check?]}
+   opts]
+  `(case* ~(clj-emit/-emit-form* test opts)
+          ~shift ~mask
+          ~(clj-emit/-emit-form* default opts)
+          ~(apply sorted-map
+                  (mapcat (fn [{:keys [hash test]} {:keys [then]}]
+                            [hash [(clj-emit/-emit-form* test opts)
+                                   (clj-emit/-emit-form* then opts)]])
+                          tests thens))
+          ~switch-type ~test-type ~skip-check?))
+
+(defmethod -emit-form :static-call
+  [{:keys [class method args]} opts]
+  `(~(symbol (jvm-emit/class->str class) (name method))
+    ~@(mapv #(clj-emit/-emit-form* % opts) args)))
+
+(defmethod -emit-form :instance-field
+  [{:keys [instance field]} opts]
+  `(~(symbol (str ".-" (name field))) ~(clj-emit/-emit-form* instance opts)))
+
+(defmethod -emit-form :instance-call
+  [{:keys [instance method args]} opts]
+  `(~(symbol (str "." (name method))) ~(clj-emit/-emit-form* instance opts)
+    ~@(mapv #(clj-emit/-emit-form* % opts) args)))
+
 (defmethod -emit-form :default [ast opts]
   (jvm-emit/-emit-form ast opts))
 
