@@ -40,7 +40,7 @@
     ;; NOTE: Reattach the metadata to the var (via the symbol) because `def`
     ;; clears it. Also attach the metadata to the vector for convenience.
     [ast (cond
-           (get-in *opts* [:debug :expand-chor]) `'~(emit-form ast #{:sugar})
+           (get-in *opts* [:debug :expansion]) `'~(emit-form ast #{:sugar})
            def `(def ~name ~(with-meta (vec projs) `{:klor/chor '~meta}))
            :else `(declare ~name))]))
 
