@@ -82,8 +82,8 @@
 ;;;   parameters of a call to `recur` in the current context, and the type of
 ;;;   its return value, respectively.
 ;;;
-;;; - Its `:fn-type` key stores the agreement type of the `fn` currently being
-;;;   type checked.
+;;; - Its `:homo-type` key stores the agreement type to which a homogeneous
+;;;   operator (`fn`/`try`/`catch`) currently being type checked is restricted.
 ;;;
 ;;; The type checker uses a bidirectional type checking algorithm: some types
 ;;; are inferred (sometimes with the help of user-provided type annotations),
@@ -125,11 +125,11 @@
 
 (defn with-type
   {:style/indent 0}
-  [ast type {:keys [fn-type] :as tenv}]
-  (when (and fn-type (not (type= type fn-type)))
-    (type-error ["`fn`'s body must be homogeneous; it cannot mention types "
-                 "different from its own agreement type: got "
-                 (render-type type) ", expected " (render-type fn-type)]
+  [ast type {:keys [homo-type] :as tenv}]
+  (when (and homo-type (not (type= type homo-type)))
+    (type-error ["`fn`/`try`/`catch`'s body must be homogeneous; it cannot "
+                 "mention types different from the lifted type: got "
+                 (render-type type) ", expected " (render-type homo-type)]
                 ast))
   (let [roles (type-roles type)
         mentions (apply set/union roles (map :rmentions (children ast)))]
@@ -193,8 +193,8 @@
 (defn add-recur-block [tenv params ret]
   (assoc tenv :recur-params params :recur-ret ret))
 
-(defn add-fn-type [tenv type]
-  (assoc tenv :fn-type type))
+(defn restrict-type [tenv type]
+  (assoc tenv :homo-type type))
 
 ;;; Choreographic
 
@@ -399,7 +399,7 @@
 (defmethod -typecheck :try [tenv {:keys [env] :as ast}]
   (let [ltype (lifted-type env)
         ;; Restrict all children to only ever mention a specific agreement type
-        tenv' (add-fn-type tenv ltype)
+        tenv' (restrict-type tenv ltype)
         ;; Type check the children
         ast' (-typecheck* tenv' ast)]
     (assert (apply type= ltype (map :rtype (children ast')))
@@ -408,7 +408,7 @@
     (with-type ast' ltype tenv)))
 
 (defmethod -typecheck :catch [tenv {:keys [env local] :as ast}]
-  ;; NOTE: Our `tenv` inherits the `fn-type` set up by `try`.
+  ;; NOTE: Our `tenv` inherits the type restriction set up by `try`.
   (let [ltype (lifted-type env)
         {:keys [class local] :as ast'} (-typecheck* tenv ast [:class])
         ;; Infer the type of the binding
@@ -452,7 +452,7 @@
         ;; Add a recur block
         tenv'' (add-recur-block tenv' (repeat (count params) ltype) ltype)
         ;; Restrict the body to only ever mention a specific agreement type
-        tenv''' (add-fn-type tenv'' ltype)
+        tenv''' (restrict-type tenv'' ltype)
         ;; Typecheck the body
         {:keys [body] :as ast''} (-typecheck* tenv''' ast' [:body])
         {:keys [ctor] :as type} (:rtype body)]
