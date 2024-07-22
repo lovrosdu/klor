@@ -56,6 +56,20 @@
   `(pack ~@(for [[dst expr] (map vector dsts exprs)]
              `(~(make-move src dst) ~expr))))
 
+(defmacro scatter-seq [[src & dsts :as roles] expr]
+  (let [seq (gensym "seq")
+        n (count dsts)]
+    `(~src
+      (let [val# ~expr]
+        (when-not (seqable? val#)
+          (error :klor ["`scatter-seq`'s expression must be a seqable: " val#]))
+        (let [~seq (seq val#)
+              n# (count ~seq)]
+          (when-not (= n# ~n)
+            (error :klor ["`scatter-seq`'s sequence has the wrong number of "
+                          " elements: expected " ~n ", got " n# ": " ~seq]))
+          (scatter [~@roles] ~@(for [i (range n)] `(nth ~seq ~i))))))))
+
 (defmacro gather [[dst & srcs] & exprs]
   (let [c1 (count srcs)
         c2 (count exprs)]
