@@ -1,7 +1,7 @@
 # Klor: Choreographies in Clojure
 
 <p align="center">
-  <img src="./klor.png" title="Klor" alt="Klor">
+  <img src="./klor.svg" title="Klor" alt="Klor">
 </p>
 
 ## Setup
