@@ -11,3 +11,6 @@
     ;; `clojure.walk`'s is very primitive and walks the form blindly without
     ;; actually understanding which parts are code, which are literals, etc.
     (macroexpand-all `(do ~@body) (empty-env) {:passes-opts {}})))
+
+(defn alter-opts! [f & args]
+  (apply alter-var-root #'*opts* f args))
