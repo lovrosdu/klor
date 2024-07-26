@@ -9,6 +9,10 @@
 (def ^:dynamic *debug*
   false)
 
+(defn debug [& args]
+  (when *debug*
+    (apply println args)))
+
 (def stop (Object.))
 
 (defn put! [^LinkedBlockingQueue q e]
@@ -26,24 +30,19 @@
           (send-fn e)
           (recur))))
     (catch Throwable t
-      (when *debug*
-        (println "Exception:" (.getMessage t))))
+      (debug "Exception:" (.getMessage t)))
     (finally
-      (when *debug*
-        (println "Send loop exited")))))
+      (debug "Send loop exited"))))
 
 (defn recv-loop [^LinkedBlockingQueue recv-fn]
   (try
     (while true (recv-fn))
     (catch InterruptedException e
-      (when *debug*
-        (println "Interrupted")))
+      (debug "Interrupted"))
     (catch Throwable t
-      (when *debug*
-        (println "Exception:" (.getMessage t))))
+      (debug "Exception:" (.getMessage t)))
     (finally
-      (when *debug*
-        (println "Recv loop exited")))))
+      (debug "Recv loop exited"))))
 
 (defchor -events [A B] (-> (-> A B) [A A B]) [handler]
   (pack (A 'send-queue) (A 'send-loop-thread) (B 'recv-loop-thread)))
@@ -63,7 +62,7 @@
 ;;; <layout>    ::= [<chain>*]
 ;;; <chain>     ::= (<link-head> <link-tail>+)
 ;;; <link-head> ::= <role>
-;;; <link-tail> ::= -> <role> | -- <role>
+;;; <link-tail> ::= -> <role> | <- <role> | -- <role>
 
 (defn link-edges [[l kind r :as link]]
   (when-not (and (= (count link) 3) (every? usym? [l r]) (not= l r))
