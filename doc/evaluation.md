@@ -1,6 +1,8 @@
-# Methodology
+# Evaluation
 
-We implemented a [benchmark](https://github.com/lovrosdu/klor/blob/master/src/klor/benchmark.clj) to carry out a performance evaluation of Klor based on the implemented [distributed algorithms](https://github.com/lovrosdu/klor/blob/master/src/klor/fokkink.clj).
+## Methodology
+
+We implemented a [benchmark](../src/klor/benchmark.clj) to carry out a performance evaluation of Klor based on the [implemented](../src/klor/fokkink.clj) [distributed algorithms](./distributed-algorithms.md).
 We evaluated the compile-time and the run-time performance using the following selection of algorithms: Chang--Roberts, Itai--Rodeh, Tarry's algorithm, Depth-first search, Echo algorithm, and Echo algorithm with extinction.
 
 In particular, we performed a series of measurements for each combination of algorithm, number of roles (from 3 to 7) and network layout.
@@ -10,16 +12,16 @@ The following table shows the layouts we used:
 
 | n | Manually chosen layout                         | Fully connected layout                           |
 |--:|:----------------------------------------------:|:------------------------------------------------:|
-| 3 | <img src="./layout-manual-3.svg" height="100"> | <img src="./layout-complete-3.svg" height="100"> |
-| 4 | <img src="./layout-manual-4.svg" height="100"> | <img src="./layout-complete-4.svg" height="100"> |
-| 5 | <img src="./layout-manual-5.svg" height="100"> | <img src="./layout-complete-5.svg" height="100"> |
-| 6 | <img src="./layout-manual-6.svg" height="100"> | <img src="./layout-complete-6.svg" height="100"> |
-| 7 | <img src="./layout-manual-7.svg" height="100"> | <img src="./layout-complete-7.svg" height="100"> |
+| 3 | <img src="./evaluation-layout-manual-3.svg" height="100"> | <img src="./evaluation-layout-complete-3.svg" height="100"> |
+| 4 | <img src="./evaluation-layout-manual-4.svg" height="100"> | <img src="./evaluation-layout-complete-4.svg" height="100"> |
+| 5 | <img src="./evaluation-layout-manual-5.svg" height="100"> | <img src="./evaluation-layout-complete-5.svg" height="100"> |
+| 6 | <img src="./evaluation-layout-manual-6.svg" height="100"> | <img src="./evaluation-layout-complete-6.svg" height="100"> |
+| 7 | <img src="./evaluation-layout-manual-7.svg" height="100"> | <img src="./evaluation-layout-complete-7.svg" height="100"> |
 
 To make measurements consistent and statistically meaningful, we made use of the [Criterium](https://github.com/hugoduncan/criterium) library to aggregate the data from a series of executions and account for the peculiarities of the JVM's just-in-time compiler and garbage collector.
 All of the measurements were made on a Linux x86-64 system with an Intel i5-6500 3.20 GHz CPU and 40 GiB of RAM.
 
-# Compile-time Performance
+## Compile-time Performance
 
 The compile-time phase of Klor consists of parsing the Klor code into an AST, analyzing the AST (type checking, etc.) and compiling (projecting) it to separate pieces of Clojure code for each role.
 Evaluating the performance of this phase gives us an idea of how fast Klor is at processing code, which indirectly affects the compilation of any Clojure project using Klor and the experience of developers using Klor interactively at a Clojure REPL.
@@ -52,13 +54,13 @@ We find that Klor is already quite fast and perfectly suitable for the REPL-cent
 This also matches our own personal experience of working with Klor while implementing the mentioned distributed algorithms.
 In general, having a tight feedback loop significantly increases developer productivity.
 
-# Run-time Performance
+## Run-time Performance
 
 Klor's run-time phase corresponds to the execution of the projected code.
 Since Klor freely interoperates with and compiles down to Clojure, it naturally inherits all of its performance characteristics.
 However, for run-time performance we are mainly interested in measuring the overhead introduced by Klor compared to plain Clojure.
 
-For this reason, in addition to the Klor implementations of the algorithms, we also implemented [plain Clojure variants](https://github.com/lovrosdu/klor/blob/master/src/klor/fokkink_plain.clj) of each algorithm.
+For this reason, in addition to the Klor implementations of the algorithms, we also implemented [plain Clojure variants](../src/klor/fokkink_plain.clj) of each algorithm.
 We measured the run-time performance by timing the execution of each variant of the algorithm (`K` for Klor vs. `P` for plain Clojure).
 In both cases we've used the shared memory `core.async` channels as the underlying transport mechanism, which allows us to avoid highly variable transport latencies as much as possible and measure the overhead.
 

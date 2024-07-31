@@ -1,4 +1,6 @@
-# Chang--Roberts algorithm
+# Distributed Algorithms
+
+## Chang--Roberts algorithm
 
 The Chang--Roberts algorithm is a *leader election algorithm* for *ring networks*.
 It assumes that each role has a *unique identifier*.
@@ -45,7 +47,7 @@ D --> B: [:exit {:id 7}]
  D [{:id 0, :passive? true, :leader 7}]}
 ```
 
-# Itai--Rodeh algorithm
+## Itai--Rodeh algorithm
 
 The Itai--Rodeh algorithm is a refinement of Chang--Roberts that can deal with *duplicate identifiers* using a *probabilistic approach*.
 This is useful in the context of *anonymous networks* where nodes either don't have or cannot reveal their unique identifier.
@@ -82,7 +84,7 @@ B --> C: [:exit {:hops 3}]
  C [{:round 0, :id 2, :leader 2, :leader? true}]}
 ```
 
-# Tarry's algorithm
+## Tarry's algorithm
 
 Tarry's algorithm is a *traversal algorithm* for *undirected networks*.
 A message will be passed throughout the whole network with the guarantee that each node will send to each of its neighbors *exactly once*.
@@ -136,7 +138,7 @@ D --> A: [:token {:hops 12}]
  E [{:seen #{A D B}, :parent D}]}
 ```
 
-# Depth-first search
+## Depth-first search
 
 Depth-first search is a refinement of Tarry's algorithm that traverses the network in a *depth-first order*.
 
@@ -174,7 +176,7 @@ D --> A: [:token {:hops 12}]
  E [{:seen #{A D B}, :parent D}]}
 ```
 
-# Echo algorithm
+## Echo algorithm
 
 The echo algorithm is a *wave algorithm* for *undirected networks*, which will distribute a message across a network in a manner similar to *breadth-first* search.
 
@@ -214,7 +216,7 @@ B --> A: [:token {:hops 5}]
  E [{:todo #{}, :parent B}]}
 ```
 
-# Echo algorithm with extinction
+## Echo algorithm with extinction
 
 The echo algorithm with extinction is a *leader election algorithm* for *undirected networks* based on the echo algorithm.
 Each node initiates a wave of the echo algorithm in hope of becoming a leader.

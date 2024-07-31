@@ -82,10 +82,10 @@
   (layout-show (complete-layouts 7))
 
   (doseq [[n layout] layouts]
-    (layout-save layout (format "/tmp/layout-manual-%s.svg" n)))
+    (layout-save layout (format "/tmp/evaluation-layout-manual-%s.svg" n)))
 
   (doseq [[n layout] complete-layouts]
-    (layout-save layout (format "/tmp/layout-complete-%s.svg" n)))
+    (layout-save layout (format "/tmp/evaluation-layout-complete-%s.svg" n)))
   )
 
 ;;; Analysis
