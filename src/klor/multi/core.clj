@@ -1,8 +1,9 @@
 (ns klor.multi.core
-  (:require klor.multi.defchor
-            klor.multi.specials
-            klor.multi.stdlib
-            potemkin))
+  (:require
+   klor.multi.defchor
+   klor.multi.specials
+   klor.multi.stdlib
+   potemkin))
 
 (potemkin/import-vars
  [klor.multi.defchor defchor]
