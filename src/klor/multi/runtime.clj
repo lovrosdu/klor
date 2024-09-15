@@ -38,9 +38,16 @@
                        {:locators (mapv #(get locators %) locator-idxs)})
                 (get chor role-idx)))))
 
-(defn play-role [{:keys [role] :as config} chor & args]
+(defn play-role [{:keys [role locators] :as config} chor & args]
   (let [{:keys [roles signature]} (:klor/chor (meta chor))
         role-idx (.indexOf roles role)
+        locators (update-keys
+                  locators
+                  #(let [idx (.indexOf roles %)]
+                     (if (= idx -1)
+                       (error :klor ["Role " role " is not part of "
+                                     "the choreography"])
+                       idx)))
         {:keys [params]} signature]
     (when (= role-idx -1)
       (error :klor ["Role " role " is not part of the choreography"]))
@@ -54,5 +61,5 @@
       (when-not (= c1 c2)
         (error :klor ["Wrong number of arguments to the projection for " role
                       ": got " c1 ", expected " c2])))
-    (binding [*config* config]
+    (binding [*config* (assoc config :locators locators)]
       (apply (get chor role-idx) args))))

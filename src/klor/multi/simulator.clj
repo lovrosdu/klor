@@ -54,7 +54,7 @@
 (defn wrap-channels [{:keys [role] :as config} roles channels]
   (merge config {:send (channel-send channels role)
                  :recv (channel-recv channels role)
-                 :locators roles}))
+                 :locators (zipmap roles roles)}))
 
 ;;; Simulator
 
