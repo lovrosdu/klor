@@ -1,8 +1,10 @@
 (ns klor.multi.examples
-  (:require [clojure.core.match :refer [match]]
-            [clojure.string :as str]
-            [klor.multi.core :refer :all]
-            [klor.multi.simulator :refer [simulate-chor]])
+  (:require
+   [clojure.core.match :refer [match]]
+   [clojure.string :as str]
+   [klor.multi.core :refer :all]
+   [klor.multi.runtime :refer [play-role]]
+   [klor.multi.simulator :refer [simulate-chor]])
   (:import java.time.LocalDate))
 
 ;;; Simple
@@ -25,17 +27,19 @@
     (B (println "It's even!"))
     (B (println "It's odd!"))))
 
-;;; Remote Apply
+;;; Remote
 
-(defchor remote-apply [A B] (-> A B A) [x f]
+(defchor remote-invoke [A B] (-> B A A) [f x]
   (B->A (f (A->B x))))
 
-;;; Remote Map
+(defchor remote-apply [A B] (-> B A A) [f xs]
+  (B->A (B (apply f (A->B xs)))))
 
-(defchor remote-map [A B] (-> A B A) [xs f]
-  (if (A=>B (A (seq xs)))
-    (A (cons (remote-apply [A B] (first xs) f) (remote-map [A B] (next xs) f)))
-    (A nil)))
+(defchor remote-map [A B] (-> B A A) [f xs]
+  (if (A=>B (A (empty? xs)))
+    (A nil)
+    (A (cons (remote-invoke [A B] f (first xs))
+             (remote-map [A B] f (next xs))))))
 
 ;;; Ping-Pong
 
@@ -77,6 +81,33 @@
 (comment
   @(simulate-chor mutrec-1 5)
   )
+
+;;; Higher-order
+
+(defchor chain [A B C] (-> (-> B C) (-> A B) A C) [g f x]
+  (g (f x)))
+
+(defchor chain-test-1 [A B C] (-> C) []
+  (chain [A B C]
+         (chor (-> B C) [x] (B->C (B (+ x 10))))
+         (chor (-> A B) [x] (A->B (A (* x 10))))
+         (A 41)))
+
+(defchor mul [A B] (-> A B) [x]
+  (A->B (A (* x 10))))
+
+(defchor add [A B] (-> A B) [x]
+  (A->B (A (+ x 10))))
+
+(defchor chain-test-2 [A B C] (-> C) []
+  (chain [A B C] (inst add [B C]) (inst mul [A B]) (A 41)))
+
+(defchor compose [A B C] (-> (-> B C) (-> A B) (-> A C | B)) [g f]
+  (chor (-> A C | B) [x] (g (f x))))
+
+(defchor compose-test [A B C] (-> C) []
+  (let [h (compose [A B C] (inst add [B C]) (inst mul [A B]))]
+    (C (+ (h (A 40)) (h (A 0))))))
 
 ;;; Buyer--Seller
 
@@ -147,6 +178,7 @@
 (comment
   @(simulate-chor get-token (constantly {:password "secret"}))
   @(simulate-chor get-token (constantly {:password "wrong"}))
+  @(simulate-chor get-token #(hash-map :password (rand-nth ["wrong" "secret"])))
   @(simulate-chor get-token #(read-creds "Password: "))
   )
 
@@ -167,6 +199,19 @@
   ;; Example from <https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange#Cryptographic_explanation>.
   @(simulate-chor exchange-key-1 5 23 4 3)
   @(simulate-chor exchange-key-2 5 23 4 3)
+  )
+
+(defchor secure-1 [A B] (-> A B) [x]
+  (unpack [[k1 k2] (exchange-key-1 [A B] 5 23 (A 4) (B 3))]
+    (B (.xor k2 (A->B (A (.xor k1 (biginteger x))))))))
+
+(defchor secure-2 [A B] (-> A B) [x]
+  (let [k (exchange-key-2 [A B] 5 23 (A 4) (B 3))]
+    (B (.xor k (A->B (A (.xor k (biginteger x))))))))
+
+(comment
+  @(simulate-chor secure-1 42)
+  @(simulate-chor secure-2 42)
   )
 
 ;;; Game
