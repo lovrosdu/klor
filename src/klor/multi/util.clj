@@ -67,21 +67,3 @@
 
 (defn ast-error [tag msg {:keys [raw-forms form env] :as ast} & {:as kvs}]
   (form-error tag msg (or (first raw-forms) form) env kvs))
-
-;;; Virtual Threads
-
-(defn virtual-thread-call [f]
-  (let [p (promise)]
-    ;; NOTE: Capture the currently active dynamic bindings.
-    (.. Thread (ofVirtual) (start (bound-fn [] (deliver p (f)))))
-    p))
-
-(defmacro virtual-thread [& body]
-  `(virtual-thread-call (fn [] ~@body)))
-
-(defn virtual-thread-call* [f]
-  ;; NOTE: Capture the currently active dynamic bindings.
-  (.. Thread (ofVirtual) (unstarted (bound-fn [] (f)))))
-
-(defmacro virtual-thread* [& body]
-  `(virtual-thread-call* (fn [] ~@body)))

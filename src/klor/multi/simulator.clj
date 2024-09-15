@@ -2,7 +2,7 @@
   (:require [clojure.core.async :as a]
             [klor.multi.runtime :refer [play-role]]
             [klor.multi.types :refer [type-roles render-type]]
-            [klor.multi.util :refer [error do1 virtual-thread]])
+            [klor.multi.util :refer [error do1]])
   (:import java.io.CharArrayWriter))
 
 ;;; Logging
@@ -65,7 +65,7 @@
 (defn spawn-role [{:keys [role] :as config} chor args]
   (let [log-writer (if (true? *log*) *out* *log*)
         redirect-writer (if *log* (redirect role) *out*)]
-    (virtual-thread
+    (future
       (binding [*log* log-writer]
         (log role "spawned")
         (try

@@ -1,7 +1,7 @@
 (ns klor.multi.events
   (:require [clojure.set :as set]
             [klor.multi.core :refer :all]
-            [klor.multi.util :refer [usym? error virtual-thread* do1]])
+            [klor.multi.util :refer [usym? error do1]])
   (:import java.util.concurrent.LinkedBlockingQueue))
 
 ;;; Events
@@ -50,9 +50,9 @@
 (def events
   (with-meta [(fn [send-fn]
                 (let [q (LinkedBlockingQueue.)]
-                  [q (virtual-thread* (send-loop q send-fn))]))
+                  [q (Thread. (bound-fn [] (send-loop q send-fn)))]))
               (fn [recv-fn]
-                [(virtual-thread* (recv-loop recv-fn))])]
+                [(Thread. (bound-fn [] (recv-loop recv-fn)))])]
     (meta -events)))
 
 (alter-meta! #'events merge (select-keys (meta #'-events) [:klor/chor]))

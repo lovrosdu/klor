@@ -4,7 +4,7 @@
    [clojure.core.async :as a]
    [clojure.core.match :refer [match]]
    [klor.multi.events :as events]
-   [klor.multi.util :refer [virtual-thread do1]]))
+   [klor.multi.util :refer [do1]]))
 
 (def ^:dynamic *debug*
   false)
@@ -110,7 +110,7 @@
         {:keys [in out] :as graph} (events/layout-graph [ring])
         chans (atom {})
         ps (for [[role arg] (map vector roles args)]
-             (virtual-thread
+             (future
                (chang-roberts-1 chans role (in role) (out role) arg)))]
     (mapv deref (doall ps))))
 
@@ -176,7 +176,7 @@
         {:keys [in out] :as graph} (events/layout-graph [ring])
         chans (atom {})
         ps (for [[role arg] (map vector roles args)]
-             (virtual-thread
+             (future
                (itai-rodeh-1 chans role (in role) (out role) arg)))]
     (mapv deref (doall ps))))
 
@@ -220,7 +220,7 @@
   (let [{:keys [in out] :as graph} (events/layout-graph layout)
         chans (atom {})
         ps (for [[role arg] (map vector roles (cons {:init? true} (repeat {})))]
-             (virtual-thread (tarry-1 chans role (in role) (out role) arg)))]
+             (future (tarry-1 chans role (in role) (out role) arg)))]
     (mapv deref (doall ps))))
 
 (comment
@@ -264,7 +264,7 @@
   (let [{:keys [in out] :as graph} (events/layout-graph layout)
         chans (atom {})
         ps (for [[role arg] (map vector roles (cons {:init? true} (repeat {})))]
-             (virtual-thread (dfs-1 chans role (in role) (out role) arg)))]
+             (future (dfs-1 chans role (in role) (out role) arg)))]
     (mapv deref (doall ps))))
 
 (comment
@@ -310,7 +310,7 @@
   (let [{:keys [in out] :as graph} (events/layout-graph layout)
         chans (atom {})
         ps (for [[role arg] (map vector roles (cons {:init? true} (repeat {})))]
-             (virtual-thread (echo-1 chans role (in role) (out role) arg)))]
+             (future (echo-1 chans role (in role) (out role) arg)))]
     (mapv deref (doall ps))))
 
 (comment
@@ -375,7 +375,7 @@
   (let [{:keys [in out] :as graph} (events/layout-graph layout)
         chans (atom {})
         ps (for [[role arg] (map vector roles args)]
-             (virtual-thread (echoex-1 chans role (in role) (out role) arg)))]
+             (future (echoex-1 chans role (in role) (out role) arg)))]
     (mapv deref (doall ps))))
 
 (comment
