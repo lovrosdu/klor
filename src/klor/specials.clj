@@ -1,5 +1,5 @@
-(ns klor.multi.specials
-  (:require [klor.multi.util :refer [warn]]))
+(ns klor.specials
+  (:require [klor.util :refer [warn]]))
 
 (defmacro lifting [[role+] & body]
   {:style/indent 1}

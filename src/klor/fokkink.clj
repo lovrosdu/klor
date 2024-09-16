@@ -1,13 +1,13 @@
-(ns klor.multi.fokkink
+(ns klor.fokkink
   (:require
    [clojure.set :as set]
    [clojure.core.match :refer [match]]
-   [klor.multi.core :refer :all]
-   [klor.multi.events :refer [events with-events count-of out-of in-of
-                              data-of swap-data! enq! start! stop!
-                              with-reacts]]
-   [klor.multi.simulator :refer [simulate-chor]]
-   [klor.multi.util :refer [usym? error do1]]))
+   [klor.core :refer :all]
+   [klor.events :refer
+    [events with-events count-of out-of in-of data-of swap-data! enq!
+     start! stop! with-reacts]]
+   [klor.simulator :refer [simulate-chor]]
+   [klor.util :refer [usym? error do1]]))
 
 (def ^:dynamic *debug*
   false)

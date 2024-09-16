@@ -1,7 +1,7 @@
-(ns klor.multi.stdlib
+(ns klor.stdlib
   (:require
-   [klor.multi.specials :refer [narrow copy pack unpack* chor*]]
-   [klor.multi.util :refer [usym? unpack-binder? make-copy make-move error]]))
+   [klor.specials :refer [narrow copy pack unpack* chor*]]
+   [klor.util :refer [usym? unpack-binder? make-copy make-move error]]))
 
 (defmacro move [roles expr]
   (when-not (and (vector? roles) (= (count roles) 2))

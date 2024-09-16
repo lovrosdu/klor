@@ -1,15 +1,14 @@
-(ns klor.multi.typecheck
+(ns klor.typecheck
   (:require
    [clojure.set :as set]
    [clojure.core.match :refer [match]]
    [clojure.tools.analyzer.ast :as ast :refer [children update-children]]
    [clojure.tools.analyzer.env :as env]
    [clojure.tools.analyzer.passes.jvm.validate :as jvm-validate]
-   [klor.multi.types :refer
+   [klor.types :refer
     [parse-type type-roles normalize-type render-type replace-roles]]
-   [klor.multi.validate-roles :refer [validate-roles]]
-   [klor.multi.util :refer
-    [update-children* replace-children -str ast-error]]))
+   [klor.validate-roles :refer [validate-roles]]
+   [klor.util :refer [update-children* replace-children -str ast-error]]))
 
 ;;; Util
 

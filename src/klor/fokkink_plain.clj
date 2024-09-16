@@ -1,10 +1,10 @@
-(ns klor.multi.fokkink-plain
+(ns klor.fokkink-plain
   (:require
    [clojure.set :as set]
    [clojure.core.async :as a]
    [clojure.core.match :refer [match]]
-   [klor.multi.events :as events]
-   [klor.multi.util :refer [do1]]))
+   [klor.events :as events]
+   [klor.util :refer [do1]]))
 
 (def ^:dynamic *debug*
   false)

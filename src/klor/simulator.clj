@@ -1,8 +1,8 @@
 (ns klor.simulator
   (:require [clojure.core.async :as a]
-            [klor.roles :refer [role-of]]
             [klor.runtime :refer [play-role]]
-            [klor.util :refer [virtual-thread]])
+            [klor.types :refer [type-roles render-type]]
+            [klor.util :refer [error do1]])
   (:import java.io.CharArrayWriter))
 
 ;;; Logging
@@ -28,63 +28,69 @@
       (log* (str role ":") (.toString ^CharArrayWriter this))
       (.reset ^CharArrayWriter this))))
 
-;;; core.async Transport
+;;; `core.async` Transport
 
-(defn ensure-channel [channels from to]
-  (if (get channels [from to])
+(defn ensure-channel [channels src dst]
+  (if (get channels [src dst])
     channels
-    (conj channels [[from to] (a/chan)])))
+    (conj channels [[src dst] (a/chan)])))
 
-(defn get-channel [channels from to]
-  (let [channels (swap! channels ensure-channel from to)]
-    (get channels [from to])))
+(defn get-channel [channels src dst]
+  (let [channels (swap! channels ensure-channel src dst)]
+    (get channels [src dst])))
 
-(defn channel-send [channels from]
-  (fn [to value]
+(defn channel-send [channels src]
+  (fn [dst value]
     ;; NOTE: Wrap `value` in a vector so that we can communicate nils.
-    (a/>!! (get-channel channels from to) [value])
+    (a/>!! (get-channel channels src dst) [value])
     value))
 
-(defn channel-recv [channels to]
-  (fn [from]
-    (let [[value] (a/<!! (get-channel channels from to))]
-      (log from "-->" (str to ": " (pr-str value)))
+(defn channel-recv [channels dst]
+  (fn [src]
+    (let [[value] (a/<!! (get-channel channels src dst))]
+      (log src "-->" (str dst ": " (pr-str value)))
       value)))
 
-(defn channel-offer [channels to]
-  (fn [from]
-    (let [[value] (a/<!! (get-channel channels from to))]
-      (log from "-->" to (str "[" (pr-str value) "]"))
-      value)))
-
-(defn wrap-channels [{:keys [role] :as config} channels]
-  (merge {:send (channel-send channels role)
-          :recv (channel-recv channels role)
-          :offer (channel-offer channels role)}
-         config))
+(defn wrap-channels [{:keys [role] :as config} roles channels]
+  (merge config {:send (channel-send channels role)
+                 :recv (channel-recv channels role)
+                 :locators (zipmap roles roles)}))
 
 ;;; Simulator
 
-(defn project-args [role params args]
-  (keep (fn [[param arg]] (if (= (role-of param) role) arg nil))
-        (map vector params args)))
+(defn project-args [role args params]
+  (keep (fn [[a p]] (when (contains? (type-roles p) role) a))
+        (map vector args params)))
 
-(defn spawn-role [role channels params chor args]
+(defn spawn-role [{:keys [role] :as config} chor args]
   (let [log-writer (if (true? *log*) *out* *log*)
         redirect-writer (if *log* (redirect role) *out*)]
-    (virtual-thread
+    (future
       (binding [*log* log-writer]
         (log role "spawned")
-        (let [res (binding [*out* redirect-writer]
-                    (apply play-role (wrap-channels {:role role} channels) chor
-                           (project-args role params args)))]
-          (log role "exited")
-          res)))))
-
-(defn promise-all [promises]
-  (delay (mapv #(try (deref %) (catch Throwable t t)) promises)))
+        (try
+          (do1 (binding [*out* redirect-writer]
+                 (apply play-role config chor args))
+            (log role "exited normally"))
+          (catch Throwable t
+            (log role "exited abruptly:" (.getMessage t))
+            t))))))
 
 (defn simulate-chor [chor & args]
   (let [channels (atom {})
-        {:keys [roles params]} (:klor/chor (meta chor))]
-    (promise-all (mapv #(spawn-role % channels params chor args) roles))))
+        {:keys [roles signature]} (:klor/chor (meta chor))
+        {:keys [params]} signature]
+    (when (some #(not= (:ctor %) :agree) params)
+      (error :klor ["Cannot invoke a choreography that has parameters of "
+                    "non-agreement type: " (render-type signature)]))
+    (let [c1 (count args)
+          c2 (count params)]
+      (when-not (= c1 c2)
+        (error :klor ["Wrong number of arguments to the choreography: got " c1
+                      ", expected " c2])))
+    (let [ps (->> roles
+                  (map #(spawn-role (wrap-channels {:role %} roles channels)
+                                    chor (project-args % args params)))
+                  ;; NOTE: Ensure all roles have been spawned before waiting.
+                  doall)]
+      (delay (zipmap roles (map deref ps))))))

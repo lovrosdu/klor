@@ -1,4 +1,4 @@
-(ns klor.multi.analyzer
+(ns klor.analyzer
   (:refer-clojure :exclude [macroexpand-1])
   (:require
    [clojure.string :as str]
@@ -9,14 +9,14 @@
    [clojure.tools.analyzer.passes.constant-lifter]
    [clojure.tools.analyzer.passes.jvm.emit-form]
    [clojure.tools.analyzer.utils :refer [ctx dissoc-env resolve-sym]]
-   [klor.multi.emit-form]
-   [klor.multi.types
+   [klor.emit-form]
+   [klor.types
     :refer [parse-type postwalk-type normalize-type render-type]]
-   [klor.multi.typecheck]
-   [klor.multi.projection :as proj]
-   [klor.multi.specials
+   [klor.typecheck]
+   [klor.projection :as proj]
+   [klor.specials
     :refer [narrow agree! lifting copy pack unpack* chor* inst]]
-   [klor.multi.util :refer [usym? unpack-binder? make-copy form-error]]))
+   [klor.util :refer [usym? unpack-binder? make-copy form-error]]))
 
 ;;; NOTE: The local environment's `:context` field is explicitly overriden with
 ;;; `:ctx/expr` whenever an expression is *not* in tail position with respect to
@@ -230,12 +230,12 @@
 (defn special [var parser]
   (let [sym (:name (meta var))]
     {sym                                  parser
-     ;; NOTE: Special case `klor.multi.core` which is meant to be used as a
-     ;; central namespace from which users import Klor operators. Sadly, Clojure
-     ;; does not support re-exporting imported vars and the Potemkin library we
-     ;; use in `klor.multi.core` fakes it by creating *new* vars, which are
-     ;; distinct from the ones imported from `klor.multi.specials`.
-     (symbol "klor.multi.core" (str sym)) parser
+     ;; NOTE: Special case `klor.core` which is meant to be used as a central
+     ;; namespace from which users import Klor operators. Sadly, Clojure does
+     ;; not support re-exporting imported vars and the Potemkin library we use
+     ;; in `klor.core` fakes it by creating *new* vars, which are distinct from
+     ;; the ones imported from `klor.specials`.
+     (symbol "klor.core" (str sym)) parser
      var                                  parser}))
 
 (def specials
@@ -262,7 +262,7 @@
   ;; backquote fully qualifies all literal symbols. Interestingly, backquote
   ;; *never* fully qualifies Clojure's special operators (`if`, `let*`, etc.),
   ;; so tools.analyzer doesn't have to worry about this issue. E.g. `(= `if
-  ;; 'if)` and `(= `let* 'let*)`, but `(= `pack 'klor.multi.specials/pack)`.
+  ;; 'if)` and `(= `let* 'let*)`, but `(= `pack 'klor.specials/pack)`.
   ;;
   ;; Note that any local bindings named after a special operator are ignored,
   ;; just like in Clojure. More precisely, naming a global var or local binding

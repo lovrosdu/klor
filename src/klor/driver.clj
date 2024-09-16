@@ -1,14 +1,14 @@
-(ns klor.multi.driver
+(ns klor.driver
   (:require
    [clojure.tools.analyzer.jvm :as jvm-analyzer]
    [clojure.tools.analyzer.passes :refer [schedule]]
    [clojure.tools.analyzer.passes.constant-lifter]
    [clojure.tools.analyzer.passes.jvm.emit-form]
-   [klor.multi.analyzer :refer [analyze*]]
-   [klor.multi.emit-form :refer [emit-form]]
-   [klor.multi.instrument]
-   [klor.multi.typecheck]
-   [klor.multi.projection :as proj]))
+   [klor.analyzer :refer [analyze*]]
+   [klor.emit-form :refer [emit-form]]
+   [klor.instrument]
+   [klor.typecheck]
+   [klor.projection :as proj]))
 
 ;;; Main
 
@@ -64,25 +64,25 @@
     #_#'clojure.tools.analyzer.passes.jvm.validate/validate
 
     ;; Throw on invalid role applications.
-    #_#'klor.multi.validate-roles/validate-roles
+    #_#'klor.validate-roles/validate-roles
 
     ;; Propagate lifting masks.
-    #_#'klor.multi.typecheck/propagate-masks
+    #_#'klor.typecheck/propagate-masks
 
     ;; Type check.
-    #'klor.multi.typecheck/typecheck
+    #'klor.typecheck/typecheck
 
     ;; Assert invariants after type checking.
-    #'klor.multi.typecheck/sanity-check
+    #'klor.typecheck/sanity-check
 
     ;; Potentially instrument the code with dynamic checks.
-    #'klor.multi.instrument/instrument
+    #'klor.instrument/instrument
 
     ;; Type check again after instrumenting.
-    #'klor.multi.instrument/typecheck-again
+    #'klor.instrument/typecheck-again
 
     ;; Emit form.
-    #_#'klor.multi.emit-form/emit-form})
+    #_#'klor.emit-form/emit-form})
 
 (def analyze-passes*
   (schedule analyze-passes))
@@ -91,7 +91,7 @@
   (analyze* form :run-passes analyze-passes* opts))
 
 (def project-passes
-  #{#'klor.multi.projection/cleanup
+  #{#'klor.projection/cleanup
     #'clojure.tools.analyzer.passes.jvm.emit-form/emit-form})
 
 (def project-passes*

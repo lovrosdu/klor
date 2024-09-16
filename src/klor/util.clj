@@ -1,12 +1,55 @@
 (ns klor.util
-  (:require [metabox.core :refer [box]]))
+  (:require [clojure.tools.analyzer.ast :refer [update-children]]
+            [clojure.tools.analyzer.utils :refer [-source-info]]))
 
-;;; Reporting
+;;; Clojure
+
+(defn assoc-inv [vec [k & _ :as ks] val init]
+  (if (empty? ks)
+    val
+    (let [c (count vec)
+          vec (if (< k c) vec (into (or vec []) (repeat (inc (- k c)) init)))
+          cur (get vec k)]
+      (assoc vec k (assoc-inv (if (= cur init) [] cur) (next ks) val init)))))
+
+(defn usym? [x]
+  (and (symbol? x) (not (namespace x))))
 
 (defn -str [& xs]
   ;; NOTE: Clojure's `str` returns the empty string for nil, while `print-str`
   ;; unconditionally adds spaces between arguments.
   (apply str (replace {nil "nil"} xs)))
+
+(defmacro do1 [expr & exprs]
+  `(let [val# ~expr]
+     ~@exprs
+     val#))
+
+;;; Klor
+
+(defn unpack-binder? [x]
+  (and (vector? x)
+       (not-empty x)
+       (every? (some-fn usym? unpack-binder?) x)))
+
+(defn make-copy [src dst]
+  (symbol (str src '=> dst)))
+
+(defn make-move [src dst]
+  (symbol (str src '-> dst)))
+
+;;; AST
+
+(defn update-children* [ast children f]
+  (-> ast
+      (assoc :children children)
+      (update-children f)
+      (assoc :children (:children ast))))
+
+(defn replace-children [ast smap]
+  (update-children ast #(get smap % %)))
+
+;;; Errors
 
 (defn make-message [message]
   (if (string? message) message (apply -str message)))
@@ -18,88 +61,9 @@
   (binding [*out* *err*]
     (println (str "WARNING: " (make-message message)))))
 
-;;; Metadata
+(defn form-error [tag msg form env & {:as kvs}]
+  (error tag [form ": " (make-message msg)]
+         (merge {:form form} (-source-info form env) kvs)))
 
-(defn merge-meta [x & {:as m}]
-  "Return X with metadata that's the result of merging M into X's existing
-  metadata (keys in M take precedence)."
-  (vary-meta x #(merge % m)))
-
-(defn metaify
-  "If X doesn't implement `clojure.lang.IObj`, return a `MetaBox` containing X so
-  that metadata can be attached. Otherwise, return X.
-
-  If M is given, merge it into the metadata of X with `merge-meta`."
-  ([x]
-   (if (instance? clojure.lang.IObj x) x (box x)))
-  ([x & {:as m}]
-   (merge-meta (metaify x) m)))
-
-(defn unmetaify
-  "If X is a `MetaBox`, return the value contained inside. Otherwise, return X."
-  [x]
-  (if (instance? metabox.MetaBox x) @x x))
-
-;;; Walking
-
-(defn fully-qualify [ns symbol]
-  (clojure.core/symbol (or (namespace symbol) ns) (name symbol)))
-
-(defn form-dispatch [ctx form]
-  (cond
-    ;; Non-list compound form
-    (vector? form) :vector
-    (map? form) :map
-    (set? form) :set
-    ;; Role form
-    (and (seq? form) (contains? (:roles ctx) (first form))) :role
-    ;; Other list compound form
-    (seq? form) (first form)
-    ;; Atom
-    :else :atom))
-
-;;; The 3 functions below are taken from
-;;; <https://clojure.atlassian.net/browse/CLJ-2568>.
-
-(defn walk
-  "Like `clojure.walk/walk`, except it preserves metadata."
-  [inner outer form]
-  (cond
-    (list? form)
-    (outer (with-meta (apply list (map inner form)) (meta form)))
-
-    (instance? clojure.lang.IMapEntry form)
-    (outer (clojure.lang.MapEntry/create (inner (key form)) (inner (val form))))
-
-    (seq? form)
-    (outer (with-meta (doall (map inner form)) (meta form)))
-
-    (instance? clojure.lang.IRecord form)
-    (outer (reduce (fn [r x] (conj r (inner x))) form form))
-
-    (coll? form)
-    (outer (with-meta (into (empty form) (map inner form)) (meta form)))
-
-    :else
-    (outer form)))
-
-(defn postwalk
-  "Like `clojure.walk/postwalk`, except it preserves metadata."
-  [f form]
-  (walk (partial postwalk f) f form))
-
-(defn prewalk
-  "Like `clojure.walk/prewalk`, except it preserves metadata."
-  [f form]
-  (walk (partial prewalk f) identity (f form)))
-
-;;; Virtual Threads
-
-(defn virtual-thread-call [f]
-  (let [p (promise)]
-    ;; NOTE: Capture the currently active dynamic bindings.
-    (.. Thread (ofVirtual) (start (bound-fn [] (deliver p (f)))))
-    p))
-
-(defmacro virtual-thread [& body]
-  `(virtual-thread-call (fn [] ~@body)))
+(defn ast-error [tag msg {:keys [raw-forms form env] :as ast} & {:as kvs}]
+  (form-error tag msg (or (first raw-forms) form) env kvs))

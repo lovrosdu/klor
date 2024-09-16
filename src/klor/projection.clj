@@ -1,341 +1,317 @@
 (ns klor.projection
   (:refer-clojure :exclude [send])
-  (:require [clojure.set :as set]
-            [klor.roles :refer [role-expand role-analyze role-of roles-of]]
-            [klor.runtime :refer [send recv choose offer play-role locator
-                                  *config*]]
-            [klor.util :refer [unmetaify form-dispatch error warn
-                               fully-qualify]]))
+  (:require [clojure.tools.analyzer.env :as env]
+            [clojure.tools.analyzer.ast :refer [children]]
+            [clojure.tools.analyzer.passes.jvm.emit-form :as jvm-emit]
+            [klor.runtime :refer [noop send recv make-proj]]
+            [klor.types :refer [type-roles]]
+            [klor.typecheck :refer [typecheck sanity-check]]
+            [klor.util :refer [usym? ast-error]]))
 
-;;; Reporting
+;;; Util
 
-(defn projection-error [message & {:as options}]
-  (error :klor/projection-error message options))
+(defn projection-error [msg ast & {:as kvs}]
+  (ast-error :klor/projection msg ast kvs))
 
-(defn check-located
-  ([form message]
-   (check-located form nil message))
-  ([form role message]
-   (let [actual (role-of form)]
-     (if (and actual (or (not role) (= role actual)))
-       actual
-       (projection-error message :form form)))))
+;;; Role Checks
 
-(defn local? [form]
-  (= (count (roles-of form)) 1))
+(defn mentions? [{:keys [role] :as ctx} {:keys [rmentions] :as ast}]
+  (contains? rmentions role))
 
-(defn check-local [form message]
-  (when-not (local? form)
-    (projection-error message :form form)))
+(defn has-result-for-type? [{:keys [role] :as ctx} type]
+  (contains? (type-roles type) role))
 
-(defn warn-local [form message]
-  (when-not (local? form)
-    (warn message)))
+(defn has-result-for-node? [ctx {:keys [rtype] :as ast}]
+  (has-result-for-type? ctx rtype))
 
-;;; Projection (EndPoint Projection, EPP)
-;;;
-;;; The projection of a Klor form F at a role R is a Clojure form that contains
-;;; only those actions in F relevant to R.
-;;;
-;;; If F's value is used by the enclosing then we call F a "com" (or in "com
-;;; position") with respect to the enclosing form, because its value might have
-;;; to be communicated depending on whether the roles of the two agree.
-;;;
-;;; If F contains no actions relevant to R, projection produces a special
-;;; no-op ("noop") value. However, if F's value is used by the projection of the
-;;; enclosing form, the noop is by default emitted as nil. This is controlled by
-;;; `*emit-noop-as-nil*` (true by default) which when set to false will emit
-;;; `:klor/noop` instead of nil, useful for debugging purposes to differentiate
-;;; between user-written and projection-produced nils.
-;;;
-;;; During projection we try to "prettify" (optimize) the generated Clojure
-;;; forms as much as possible by removing any unnecessary noops, unwrapping
-;;; shallow `do` forms, etc. This is controlled by `*emit-pretty*` (true by
-;;; default). Note that some more aggressive optimizations only kick in with
-;;; `*emit-noop-as-nil*` set to true. Also, we make no distinction between
-;;; user-written and projection-produced code when optimizing.
-;;;
-;;; Internally, we represent a noop as `:klor/noop*`, which we call an "internal
-;;; noop". Internal noops will be optimized out (depending on the value of
-;;; `*emit-pretty*`) except when their value is used by the projection of the
-;;; enclosing form, in which case they have to be emitted (either as nil or as
-;;; `:klor/noop` (an "external noop"), depending on the value of
-;;; `*emit-noop-as-nil*`). This distinction allows us to not accidentally
-;;; optimize out noops that the user requested to see with `*emit-noop-as-nil*`
-;;; set to false.
-;;;
-;;; In the implementation below, the contract is that `project-form` methods
-;;; might return internal noops, while `emit-*` functions cannot and must return
-;;; external noops instead.
+(defn role= [{:keys [role] :as ctx} r]
+  (= role r))
 
-(def ^:const noop
-  :klor/noop*)
+;;; Emission
 
-(defn noop? [x]
-  (= x noop))
-
-(def ^:dynamic *emit-noop-as-nil*
-  true)
-
-(def ^:dynamic *emit-pretty*
-  true)
-
-(defn emit-noop []
-  (if *emit-noop-as-nil* nil :klor/noop))
-
-(defn fills-noop? [form]
-  (and *emit-noop-as-nil*
-       (or (nil? form)
-           (and (seq? form)
-                (let [[op & _] form]
-                  (contains? `#{send choose} op))))))
-
-(defn emit-body [body]
-  (let [body-ret (last body)]
-    (if *emit-pretty*
-      (let [clean (remove noop? body)
-            clean-ret (last clean)]
-        (cond
-          ;; Body is all noops
-          (empty? clean) nil
-          ;; Body has a noop in tail position, but it can be filled
-          (and (noop? body-ret) (fills-noop? clean-ret)) clean
-          ;; Body has a noop in tail position
-          (noop? body-ret) (concat clean [(emit-noop)])
-          ;; Body has a non-noop in tail position
-          :else clean))
-      (if (noop? body-ret)
-        ;; Body has a noop in tail position
-        (concat (butlast body) [(emit-noop)])
-        ;; Body has a non-noop in tail position
-        body))))
+(defn emit-tag [expr]
+  (with-meta expr {:klor/proj true}))
 
 (defn emit-do [body]
-  (let [body (emit-body body)]
-    (cond
-      (not *emit-pretty*) `(~'do ~@body)
-      (empty? body) (emit-noop)
-      (= (count body) 1) (first body)
-      :else `(~'do ~@body))))
+  (if (empty? body) `noop (emit-tag `(do ~@body))))
 
-(defn classify-role [ctx form]
-  (cond
-    (= (role-of form) (:role ctx)) :me
-    (contains? (roles-of form) (:role ctx)) :in
-    :else :none))
-
-(defmulti project-form #'form-dispatch)
-
-(defn project-as-receiver [ctx form]
-  (case (classify-role ctx form)
-    :me (project-form ctx form)
-    :in `(~'do ~(project-form ctx form) (recv '~(role-of form)))
-    :none `(recv '~(role-of form))))
-
-(defn project-as-sender [ctx form receiver]
-  (case (classify-role ctx form)
-    ;; NOTE: Only send if we have someone to send to.
-    :me (let [p (project-form ctx form)]
-           (if receiver `(send '~receiver ~p) p))
-    :in (project-form ctx form)
-    :none noop))
-
-(defn project-coms [ctx form coms]
-  (case (classify-role ctx form)
-    :me (map (partial project-as-receiver ctx) coms)
-    :in (map #(project-as-sender ctx % (role-of form)) coms)
-    :none nil))
-
-(defn project-simple [ctx form coms f]
-  (let [coms (project-coms ctx form coms)]
-    (case (classify-role ctx form)
-      :me (f coms)
-      :in (emit-do coms)
-      :none noop)))
-
-(defn project-body [ctx form body]
-  (concat (map (partial project-form ctx) (butlast body))
-          (project-coms ctx form (take-last 1 body))))
-
-(defmacro project-maybe [ctx form & body]
-  {:style/indent 2}
-  `(case (classify-role ~ctx ~form)
-     :none noop
-     (do ~@body)))
-
-(defmethod project-form :default [ctx [op & args :as form]]
-  ;; Invoked for any non-special operator OP.
-  (let [role (role-of form)]
-    (check-located form ["Unlocated operator invocation: " form])
-    (check-located op role ["Operator position should be located at the same "
-                            "role as the invocation: expected " role ", is "
-                            (role-of op)]))
-  (project-simple ctx form args (fn [coms] `(~(project-form ctx op) ~@coms))))
-
-(defmethod project-form :atom [ctx form]
-  (check-located form ["Unlocated atomic form: " form])
-  (project-maybe ctx form (unmetaify form)))
-
-(defmethod project-form :vector [ctx form]
-  (check-located form ["Unlocated vector: " form])
-  (project-simple ctx form form vec))
-
-(defmethod project-form :map [ctx form]
-  (check-located form ["Unlocated map: " form])
-  (warn-local form ["Order of communications within a map is non-deterministic"
-                    ", use an explicit `let` instead: " form])
-  (project-simple ctx form (mapcat identity form)
-                  (fn [coms] `(~'hash-map ~@coms))))
-
-(defmethod project-form :set [ctx form]
-  (check-located form ["Unlocated set: " form])
-  (warn-local form ["Order of communications within a set is non-deterministic"
-                    ", use an explicit `let` instead: " form])
-  (project-simple ctx form form (fn [coms] `(~'hash-set ~@coms))))
-
-(defmethod project-form :role [ctx form]
-  (projection-error ["Role expression found during projection: " form]))
-
-(defmethod project-form 'do [ctx [_ & body :as form]]
-  (project-maybe ctx form (emit-do (project-body ctx form body))))
-
-(defn project-let-binding [ctx [binder initform]]
-  (check-located binder ["Unlocated `let` binder: " binder])
-  (check-local binder ["Multiple roles in `let` binder: " binder])
-  (check-located initform ["Unlocated `let` initform: " initform])
-  (case (classify-role ctx binder)
-    :me [binder (project-as-receiver ctx initform)]
-    :none (case (classify-role ctx initform)
-            (:me :in) ['_ (project-as-sender ctx initform (role-of binder))]
-            :none [])))
+(defn emit-effects [body]
+  (emit-do (concat body [`noop])))
 
 (defn emit-let [bindings body]
+  (emit-tag `(let [~@(apply concat bindings)] ~(emit-do body))))
+
+;;; Projection
+
+(defmulti -project (fn [ctx {:keys [op] :as ast}] op))
+
+(defn -project* [ctx {:keys [form] :as ast}]
+  ;; NOTE: Similarly to `clojure.tools.analyzer.passes.emit-form/-emit-form*`,
+  ;; we reattach any source metadata to the projected forms.
+  (let [proj (if (mentions? ctx ast) (-project ctx ast) `noop)
+        form-meta (meta form)
+        proj-meta (meta proj)]
+    (if (and (instance? clojure.lang.IObj proj) (or form-meta proj-meta))
+      (with-meta proj (merge form-meta proj-meta))
+      proj)))
+
+(defn project
+  {:pass-info {:walk :none
+               :depends #{#'typecheck}
+               :after #{#'sanity-check}
+               :compiler true}}
+  ([ast]
+   (project ast (:project (:passes-opts (env/deref-env)))))
+  ([ast & {:keys [role] :as ctx}]
+   (assert (usym? role) "Role must be an unqualified symbol")
+   (assert (:rtype ast) "AST is missing type information")
+   (-project* ctx ast)))
+
+;;; Utilities
+
+(defn project-with-names
+  ([ctx exprs]
+   (project-with-names ctx (repeatedly gensym) exprs))
+  ([ctx names exprs]
+   (keep (fn [[name expr]]
+           (cond
+             (not (mentions? ctx expr))      nil
+             (has-result-for-node? ctx expr) [name (-project* ctx expr)]
+             :else                           ['_ (-project* ctx expr)]))
+         (map vector names exprs))))
+
+(defn project-vals [ctx exprs emit-fn]
+  (let [projs (project-with-names ctx exprs)
+        effects? (some #{'_} (map first projs))
+        bindings (remove (comp #{'_} first) projs)]
+    (cond
+      (not effects?)    (emit-fn (map second projs))
+      (empty? bindings) (emit-effects (concat (map second projs)))
+      :else             (emit-let projs [(emit-fn (map first bindings))]))))
+
+;;; Choreographic
+
+(defmethod -project :narrow [ctx {:keys [expr] :as ast}]
+  ;; NOTE: If we have a result for the `narrow`, then we also have a result for
+  ;; `expr`. The converse is not true: we might not have a result for `narrow`,
+  ;; *even* if we have a result for `expr`, because the point of `narrow` is to
+  ;; restrict the location of `expr`'s result.
+  (if (has-result-for-node? ctx ast)
+    (-project* ctx expr)
+    (emit-effects [(-project* ctx expr)])))
+
+(defmethod -project :lifting [ctx {:keys [body] :as ast}]
+  (-project* ctx body))
+
+(defmethod -project :agree [ctx {:keys [exprs] :as ast}]
+  ;; NOTE: There is at most one expression in `exprs` for which we have a
+  ;; result, and its result is also the result of the `agree!`.
+  (project-vals ctx exprs first))
+
+(defmethod -project :copy [ctx {:keys [src dst expr env] :as ast}]
   (cond
-    (not *emit-pretty*) `(~'let [~@bindings] ~@body)
-    (empty? bindings) (emit-do body)
-    :else `(~'let [~@bindings] ~@(emit-body body))))
+    (role= ctx src) (let [idx (.indexOf (:roles env) dst)]
+                      `(send ~idx ~(-project* ctx expr)))
+    (role= ctx dst) (let [idx (.indexOf (:roles env) src)]
+                      (emit-do [(-project* ctx expr) `(recv ~idx)]))
+    :else           (-project* ctx expr)))
 
-(defmethod project-form 'let [ctx [_ bindings & body :as form]]
-  (project-maybe ctx form
-    (emit-let (mapcat (partial project-let-binding ctx)
-                      (partition 2 bindings))
-              (project-body ctx form body))))
+(defmethod -project :pack [ctx {:keys [exprs] :as ast}]
+  (project-vals ctx exprs vec))
 
-(defn offer? [form]
-  (and (seq? form) (= (first form) `offer)))
+(defn project-unpack-binder [ctx binder {:keys [rtype] :as init}]
+  ((fn rec [[binder {:keys [elems] :as type}]]
+     (cond
+       (not (has-result-for-type? ctx type)) nil
+       (symbol? binder) binder
+       :else (vec (keep rec (map vector binder elems)))))
+   [binder rtype]))
 
-(defn merge-branches [ctx left right]
-  (cond
-    (and (noop? left) (noop? right))
-    noop
-    (and (offer? left) (offer? right))
-    (let [[_ sender-l & options-l] left
-          [_ sender-r & options-r] right
-          labels-l (set (keys (apply hash-map options-l)))
-          labels-r (set (keys (apply hash-map options-r)))]
-      (cond
-        (not= sender-l sender-r)
-        (projection-error ["Cannot merge at " (:role ctx) "; different "
-                           "senders: " sender-l " and " sender-r]
-                          :left left :right right)
-        (seq (set/intersection labels-l labels-r))
-        (projection-error ["Cannot merge at " (:role ctx) "; overlapping "
-                           "labels: " labels-l " and " labels-r]
-                          :left left :right right)
-        :else
-        `(offer ~sender-l ~@options-l ~@options-r)))
-    :else
-    (projection-error ["Cannot merge at " (:role ctx) "; only noops and offers "
-                       "are supported: " left " and " right]
-                      :left left :right right)))
+(defmethod -project :unpack [ctx {:keys [binder init body] :as ast}]
+  (if-let [binder' (project-unpack-binder ctx binder init)]
+    (emit-let [[binder' (-project* ctx init)]] [(-project* ctx body)])
+    (emit-let [] [(-project* ctx init) (-project* ctx body)])))
 
-(defmethod project-form 'if [ctx [_ cond then else :as form]]
-  (check-located form ["Unlocated `if`: " form])
-  ;; NOTE: Clojure's `cond` macro unfortunately does not try to optimize its
-  ;; expansion by using the least number of `if`s possible. In particular, the
-  ;; `:else` case expands into an `if` with dead code: `(if :else <then> nil)`.
-  ;; Note that the symbol `:else` is not any more special to `cond` than any
-  ;; other truthy literal. The dead nil branch makes projection fail for a role
-  ;; that requires merging of the two branches, as it doesn't contain an
-  ;; appropriate selection. We detect this case here and implicitly elide the
-  ;; `if`, projecting only `<then>`. We believe this solution is less surprising
-  ;; than having to e.g. override Clojure's `cond`.
-  (if (and (= (unmetaify cond) :else) (nil? (unmetaify else)))
-    (project-form ctx then)
-    (project-maybe ctx form
-      (let [[c t e] (project-coms ctx form [cond then else])]
-        (case (classify-role ctx form)
-          :me `(if ~c ~t ~e)
-          :in (let [merged (merge-branches ctx t e)]
-                (case (classify-role ctx cond)
-                  (:me :in) (emit-do [c merged])
-                  :none merged)))))))
+(defmethod -project :chor [ctx {:keys [top-level local params body] :as ast}]
+  (let [params' (filter (partial has-result-for-node? ctx) params)
+        f `(fn ~@(when local [(:form local)]) [~@(map :form params')]
+             ~(-project* ctx body))]
+    (if top-level f `(make-proj ~f))))
 
-(defmethod project-form 'select [ctx [_ [label & roles] & body :as form]]
-  (check-located label ["Unlocated `select` label: " label])
-  (project-maybe ctx form
-    (let [body (project-body ctx form body)]
-      (case (classify-role ctx label)
-        :me (let [choices (for [r roles] `(choose '~r '~label))]
-              (emit-do (concat choices body)))
-        :none (let [m {:role nil :roles (set roles)}
-                    roles (with-meta roles m)]
-                (case (classify-role ctx roles)
-                  :in `(offer ~(role-of label) ~label ~(emit-do body))
-                  :none (emit-do body)))))))
+(defmethod -project :inst
+  [{:keys [role] :as ctx} {:keys [name roles env] :as ast}]
+  (let [idx (.indexOf roles role)
+        idxs (mapv #(.indexOf (:roles env) %) roles)]
+    `(make-proj ~name ~idx ~idxs)))
 
-(defn lookup-chor [{:keys [env ns] :as ctx} name]
-  (let [name (fully-qualify ns name)]
-    (or (get env name) (some-> (resolve name) meta :klor/chor))))
+;;; Binding & Control Flow
 
-(defn project-dance-locators [subs]
-  (into {} (for [[rparam role] subs] [`'~rparam `(locator '~role)])))
+(defmethod -project :let [ctx {:keys [bindings body] :as ast}]
+  (emit-let (project-with-names ctx (map :form bindings) (map :init bindings))
+            [(-project* ctx body)]))
 
-(defn project-dance-args [ctx subs params args]
-  (keep (fn [[param arg]]
-          (let [receiver (get subs (role-of param))
-                m {:role receiver :roles (roles-of arg)}]
-            (case (classify-role ctx (with-meta param m))
-              :me [(gensym) (project-as-receiver ctx arg)]
-              :in ['_ (project-as-sender ctx arg receiver)]
-              :none nil)))
-        (map vector params args)))
+(defmethod -project :do [ctx {:keys [statements ret body?] :as ast}]
+  (let [exprs (map (partial -project* ctx) (concat statements [ret]))]
+    (if body? (emit-do exprs) `(do ~@exprs))))
 
-(defmethod project-form 'dance [ctx [_ name roles & args :as form]]
-  ;; NOTE:
-  ;; - `(:role ctx)` is the role we're projecting for
-  ;; - `(:roles ctx)` are the role parameters currently in scope
-  ;; - `rparams` are the role parameters of `op`
-  ;; - `roles` are the roles instantiating the role parameters of `op`
-  (let [{rparams :roles params :params :as chor} (lookup-chor ctx name)]
-    (when-not chor
-      (projection-error ["Unknown choreography: " name]))
-    (when-not (= (count roles) (count rparams))
-      (projection-error ["Wrong number of roles: " form]))
-    (let [diff (set/difference (set roles) (set (:roles ctx)))]
-      (when (seq diff)
-        (projection-error ["Unknown roles: " diff])))
-    (when-not (apply distinct? roles)
-      (projection-error ["Duplicate roles: " roles]))
-    (when-not (= (count args) (count params))
-      (projection-error ["Wrong number of arguments: " form]))
-    (project-maybe ctx form
-      (let [subs (zipmap rparams roles)
-            bindings (project-dance-args ctx subs params args)
-            m {:role nil :roles (set roles)}]
-        (case (classify-role ctx (with-meta roles m))
-          :in (emit-let
-               (mapcat identity bindings)
-               [`(play-role
-                  (merge *config*
-                         {:role '~(get (set/map-invert subs) (:role ctx))
-                          :locators ~(project-dance-locators subs)})
-                  ~name ~@(remove #(= % '_) (map first bindings)))])
-          ;; NOTE: All bindings are dummy `_` bindings in this case.
-          :none (emit-do (map second bindings)))))))
+(defmethod -project :if [ctx {:keys [test then else] :as ast}]
+  (if (and (has-result-for-node? ctx test)
+           (some (partial mentions? ctx) [then else]))
+    `(if ~@(map (partial -project* ctx) [test then else]))
+    (emit-effects [(-project* ctx test)])))
 
-(defn project [role form & {:as ctx}]
-  "Project FORM into Clojure code for a role.
+(defmethod -project :case
+  [ctx {:keys [test default tests thens shift mask
+               switch-type test-type skip-check?]
+        :as ast}]
+  (if (and (has-result-for-node? ctx test)
+           (some (partial mentions? ctx) (concat thens [default])))
+    ;; Taken and adjusted from `clojure.tools.analyzer.passes.jvm.emit-form`.
+    `(case* ~(-project* ctx test)
+            ~shift ~mask
+            ~(-project* ctx default)
+            ~(apply sorted-map
+                    (mapcat (fn [{:keys [hash test]} {:keys [then]}]
+                              [hash (mapv (partial -project* ctx) [test then])])
+                            tests thens))
+            ~switch-type ~test-type ~skip-check?)
+    (emit-effects [(-project* ctx test)])))
 
-  ROLE is an unqualified symbol naming the role."
-  (emit-do [(project-form (merge ctx {:role role}) form)]))
+(defmethod -project :try [ctx ast]
+  (jvm-emit/emit-form ast))
+
+(defmethod -project :catch [ctx ast]
+  (jvm-emit/emit-form ast))
+
+(defmethod -project :throw [ctx {:keys [exception] :as ast}]
+  (project-vals ctx [exception] (fn [projs] `(throw ~@projs))))
+
+;;; Functions & Invocation
+
+(defmethod -project :fn [ctx ast]
+  ;; NOTE: We let `emit-form` recursively emit the whole `fn`, i.e. all of its
+  ;; methods, including their parameters and bodies, because `fn` is type
+  ;; checked as homogeneous code that has to be the same at all mentioned roles!
+  (jvm-emit/emit-form ast))
+
+(defmethod -project :invoke [ctx {fn' :fn :keys [args] :as ast}]
+  (project-vals ctx (cons fn' args) list*))
+
+(defmethod -project :recur [ctx {:keys [exprs] :as ast}]
+  (project-vals ctx exprs (fn [projs] `(recur ~@projs))))
+
+;;; References
+
+(defmethod -project :local [ctx ast]
+  (jvm-emit/emit-form ast))
+
+(defmethod -project :var [ctx ast]
+  (jvm-emit/emit-form ast))
+
+(defmethod -project :the-var [ctx ast]
+  (jvm-emit/emit-form ast))
+
+;;; Collections
+
+(defmethod -project :vector [ctx {:keys [items] :as ast}]
+  (project-vals ctx items vec))
+
+(defn ensure-distinct [projs]
+  (if (not (apply distinct? projs))
+    (map (fn [proj] `((fn ~(gensym) [] ~proj))) projs)
+    projs))
+
+(defmethod -project :map [ctx {:keys [keys vals] :as ast}]
+  (project-vals ctx (concat keys vals)
+                (fn [projs]
+                  (let [[keys vals] (split-at (count keys) projs)]
+                    (zipmap (ensure-distinct keys) vals)))))
+
+(defmethod -project :set [ctx {:keys [items] :as ast}]
+  (project-vals ctx items (comp set ensure-distinct)))
+
+;;; Constants
+
+(defmethod -project :const [ctx ast]
+  (jvm-emit/emit-form ast))
+
+(defmethod -project :quote [ctx ast]
+  (jvm-emit/emit-form ast))
+
+(defmethod -project :with-meta [ctx {:keys [expr meta] :as ast}]
+  ;; NOTE: The expression is evaluated before its metadata.
+  (project-vals ctx [expr meta] #(apply with-meta %1)))
+
+;;; Host Interop
+
+(defmethod -project :new [ctx {:keys [class args] :as ast}]
+  (project-vals ctx (cons class args) (fn [projs] `(new ~@projs))))
+
+(defmethod -project :host-interop [ctx {:keys [target m-or-f] :as ast}]
+  (project-vals ctx [target] (fn [projs] `(. ~@projs ~m-or-f))))
+
+(defmethod -project :instance-field [ctx {:keys [instance field] :as ast}]
+  (project-vals ctx [instance]
+                (fn [projs] `(~(symbol (str ".-" (name field))) ~@projs))))
+
+(defmethod -project :instance-call [ctx {:keys [instance method args] :as ast}]
+  (project-vals ctx (cons instance args)
+                (fn [projs] `(~(symbol (str "." (name method))) ~@projs))))
+
+(defmethod -project :static-field [ctx ast]
+  (jvm-emit/emit-form ast))
+
+(defmethod -project :static-call [ctx {:keys [class method args] :as ast}]
+  (project-vals ctx args (fn [projs]
+                           `(~(symbol (.getName ^Class class) (name method))
+                             ~@projs))))
+
+(defmethod -project :default [ctx {:keys [op] :as ast}]
+  (projection-error ["Don't know how to project " op ", yet!"] ast))
+
+;;; Cleanup
+
+(defmulti -cleanup (fn [opts {:keys [op] :as ast}] op))
+
+(defn cleanup
+  {:pass-info {:walk :post}}
+  ([ast]
+   (-cleanup (:cleanup (:passes-opts (env/deref-env))) ast))
+  ([ast & {:as opts}]
+   (-cleanup opts ast)))
+
+(defn cleanup? [{:keys [style] :as opts} {:keys [form] :as ast}]
+  (case style
+    :aggressive true
+    :normal (:klor/proj (meta form))
+    false))
+
+(defn inline-immediate-dos [opts ast]
+  (letfn [(inline [{:keys [op] :as ast}]
+            (if (and (= op :do) (cleanup? opts ast))
+              (children ast)
+              [ast]))]
+    (let [exprs (mapcat inline (children ast))]
+      (assoc ast :statements (vec (butlast exprs)) :ret (last exprs)))))
+
+(defn pure? [{:keys [style] :as opts} {:keys [op] :as ast}]
+  (or (and (= style :aggressive)
+           (contains? #{:const :fn :local :var :the-var :quote} op))
+      (and (contains? #{:aggressive :normal} style)
+           (case op
+             :do (every? (partial pure? opts) (children ast))
+             :var (= (:var ast) #'noop)
+             false))))
+
+(defmethod -cleanup :let [opts {:keys [bindings body] :as ast}]
+  (if (and (cleanup? opts ast) (empty? bindings)) body ast))
+
+(defmethod -cleanup :do [opts ast]
+  (let [{:keys [statements ret] :as ast'} (inline-immediate-dos opts ast)
+        statements' (remove (partial pure? opts) statements)]
+    (if (and (empty? statements') (cleanup? opts ast))
+      ret
+      (assoc ast' :statements (vec statements')))))
+
+(defmethod -cleanup :default [opts ast]
+  ast)

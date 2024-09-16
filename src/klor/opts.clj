@@ -1,4 +1,4 @@
-(ns klor.multi.opts
+(ns klor.opts
   (:require [clojure.tools.analyzer.jvm :refer [empty-env macroexpand-all]]))
 
 (def ^:dynamic *opts*

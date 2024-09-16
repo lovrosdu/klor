@@ -1,10 +1,10 @@
-(ns klor.multi.emit-form
+(ns klor.emit-form
   (:require [clojure.tools.analyzer.env :as env]
             [clojure.tools.analyzer.passes.emit-form :as clj-emit]
             [clojure.tools.analyzer.passes.jvm.emit-form :as jvm-emit]
             [clojure.tools.analyzer.passes.uniquify :refer [uniquify-locals]]
-            [klor.multi.types :refer [render-type]]
-            [klor.multi.util :refer [assoc-inv]]))
+            [klor.types :refer [render-type]]
+            [klor.util :refer [assoc-inv]]))
 
 (defn make-unpack-binder [bindings]
   (reduce (fn [binder {:keys [name form position] :as binding}]

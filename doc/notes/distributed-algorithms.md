@@ -39,7 +39,7 @@ D --> B: [:exit {:id 7}]
 ```
 
 ```
-{A #function[klor.multi.runtime/noop],
+{A #function[klor.runtime/noop],
  B [{:id 7, :leader 7, :leader? true}],
  C [{:id 3, :passive? true, :leader 7}],
  D [{:id 0, :passive? true, :leader 7}]}

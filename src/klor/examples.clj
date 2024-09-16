@@ -1,10 +1,10 @@
-(ns klor.multi.examples
+(ns klor.examples
   (:require
    [clojure.core.match :refer [match]]
    [clojure.string :as str]
-   [klor.multi.core :refer :all]
-   [klor.multi.runtime :refer [play-role]]
-   [klor.multi.simulator :refer [simulate-chor]])
+   [klor.core :refer :all]
+   [klor.runtime :refer [play-role]]
+   [klor.simulator :refer [simulate-chor]])
   (:import java.time.LocalDate))
 
 ;;; Simple

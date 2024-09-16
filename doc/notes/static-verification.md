@@ -43,8 +43,8 @@ We allow the user to omit the auxiliary set and instead infer it automatically i
 
 Relevant files:
 
-- [`multi/types.clj`](https://github.com/lovrosdu/klor/blob/master/src/klor/multi/types.clj) -- the infrastructure for working with types,
-- [`multi/typecheck.clj`](https://github.com/lovrosdu/klor/blob/master/src/klor/multi/typecheck.clj) -- the type checker.
+- [`types.clj`](https://github.com/lovrosdu/klor/blob/master/src/klor/types.clj) -- the infrastructure for working with types,
+- [`typecheck.clj`](https://github.com/lovrosdu/klor/blob/master/src/klor/typecheck.clj) -- the type checker.
 
 # Semantics
 
@@ -154,9 +154,9 @@ The following operators have had their behavior changed:
 
 Relevant files:
 
-- [`multi/analyzer.clj`](https://github.com/lovrosdu/klor/blob/master/src/klor/multi/analyzer.clj) -- the new Klor analyzer based on `tools.analyzer`,
-- [`multi/macros.clj`](https://github.com/lovrosdu/klor/blob/master/src/klor/multi/macros.clj) -- the implementation of the new `defchor`,
-- [`multi/stdlib.clj`](https://github.com/lovrosdu/klor/blob/master/src/klor/multi/stdlib.clj) -- Klor's standard library.
+- [`analyzer.clj`](https://github.com/lovrosdu/klor/blob/master/src/klor/analyzer.clj) -- the new Klor analyzer based on `tools.analyzer`,
+- [`macros.clj`](https://github.com/lovrosdu/klor/blob/master/src/klor/macros.clj) -- the implementation of the new `defchor`,
+- [`stdlib.clj`](https://github.com/lovrosdu/klor/blob/master/src/klor/stdlib.clj) -- Klor's standard library.
 
 # Examples
 

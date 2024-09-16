@@ -1,15 +1,15 @@
-(ns klor.multi.benchmark
+(ns klor.benchmark
   (:require
    [clojure.string :as str]
    [criterium.core :as crit]
    [dorothy.core :as dot]
    [dorothy.jvm :as dot-jvm]
-   [klor.multi.core :refer [defchor]]
-   [klor.multi.events :as events]
-   [klor.multi.fokkink :as fokkink]
-   [klor.multi.fokkink-plain :as fokkink-plain]
-   [klor.multi.simulator :as sim]
-   [klor.multi.util :refer [do1]]))
+   [klor.core :refer [defchor]]
+   [klor.events :as events]
+   [klor.fokkink :as fokkink]
+   [klor.fokkink-plain :as fokkink-plain]
+   [klor.simulator :as sim]
+   [klor.util :refer [do1]]))
 
 ;;; Util
 

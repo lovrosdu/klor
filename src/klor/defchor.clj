@@ -1,13 +1,13 @@
-(ns klor.multi.defchor
+(ns klor.defchor
   (:require
    [clojure.set :as set]
-   [klor.multi.analyzer :refer [adjust-chor-signature]]
-   [klor.multi.driver :refer [analyze project]]
-   [klor.multi.emit-form :refer [emit-form]]
-   [klor.multi.types :refer [parse-type type-roles render-type replace-roles]]
-   [klor.multi.stdlib :refer [chor]]
-   [klor.multi.opts :refer [*opts*]]
-   [klor.multi.util :refer [usym? warn error]]))
+   [klor.analyzer :refer [adjust-chor-signature]]
+   [klor.driver :refer [analyze project]]
+   [klor.emit-form :refer [emit-form]]
+   [klor.types :refer [parse-type type-roles render-type replace-roles]]
+   [klor.stdlib :refer [chor]]
+   [klor.opts :refer [*opts*]]
+   [klor.util :refer [usym? warn error]]))
 
 (defn adjust-defchor-signature [roles type]
   (-> (update type :aux #(let [main (type-roles (assoc type :aux #{}))]
