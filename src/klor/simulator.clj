@@ -1,8 +1,9 @@
 (ns klor.simulator
-  (:require [clojure.core.async :as a]
-            [klor.runtime :refer [play-role]]
-            [klor.types :refer [type-roles render-type]]
-            [klor.util :refer [error do1]])
+  (:require
+   [clojure.core.async :as a]
+   [klor.runtime :refer [play-role]]
+   [klor.types :refer [type-roles render-type]]
+   [klor.util :refer [error do1]])
   (:import java.io.CharArrayWriter))
 
 ;;; Logging

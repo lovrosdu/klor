@@ -1,7 +1,8 @@
 (ns klor.runtime
   (:refer-clojure :exclude [send])
-  (:require [klor.types :refer [type-roles render-type]]
-            [klor.util :refer [error]]))
+  (:require
+   [klor.types :refer [type-roles render-type]]
+   [klor.util :refer [error]]))
 
 (def ^:dynamic *config*
   {})
