@@ -346,3 +346,70 @@
 (comment
   @(simulate-chor mergesort [7 3 4 5 1 0 9 8 6 2])
   )
+
+;;; Tic-tac-toe
+
+(def ttt-syms
+  '[x o])
+
+(def ttt-none
+  '_)
+
+(def ttt-lines
+  (concat (for [i (range 3)] (for [j (range 3)] [i j]))
+          (for [i (range 3)] (for [j (range 3)] [j i]))
+          [(for [i (range 3)] [i i])]
+          [(for [i (range 3)] [i (- 3 i 1)])]))
+
+(defn ttt-board []
+  (vec (repeat 3 (vec (repeat 3 ttt-none)))))
+
+(defn ttt-place [board loc sym]
+  (when (= (get-in board loc) ttt-none) (assoc-in board loc sym)))
+
+(defn ttt-free [board]
+  (for [i (range 3) j (range 3)
+        :let [loc [i j]]
+        :when (= (get-in board loc) ttt-none)]
+    loc))
+
+(defn ttt-winner-on [board locs]
+  (let [syms (distinct (map #(get-in board %) locs))]
+    (when (= (count syms) 1) (first syms))))
+
+(defn ttt-winner [board]
+  (or (some (set ttt-syms) (map #(ttt-winner-on board %) ttt-lines))
+      (when (empty? (ttt-free board)) :draw)))
+
+(defn ttt-fmt [board]
+  (str/join "\n" (map #(str/join " " %) board)))
+
+(defn ttt-index [board]
+  (for [i (range 3)]
+    (for [j (range 3)
+          :let [loc [i j]
+                sym (get-in board loc)]]
+      (if (= sym ttt-none) (+ (* i 3) j 1) sym))))
+
+(defn ttt-pick [board]
+  (let [n (do (print (format "Pick a location [1-9]:"))
+              (flush)
+              (Long/parseLong (read-line)))
+        loc [(quot (dec n) 3) (mod (dec n) 3)]]
+    (if (not= (get-in board loc) ttt-none)
+      (recur board)
+      loc)))
+
+(defchor ttt-play [A B] (-> #{A B} #{A B} #{A B}) [board idx]
+  (A (println (str "\n" (ttt-fmt (ttt-index board)))))
+  (if-let [winner (ttt-winner board)]
+    winner
+    (let [loc (A=>B (A (ttt-pick board)))
+          board' (ttt-place board loc (get ttt-syms idx))]
+      (if board'
+        (ttt-play [B A] board' (- 1 idx))
+        (ttt-play [A B] board idx)))))
+
+(comment
+  @(simulate-chor ttt-play (ttt-board) 0)
+  )
