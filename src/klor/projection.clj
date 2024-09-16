@@ -1,12 +1,13 @@
 (ns klor.projection
   (:refer-clojure :exclude [send])
-  (:require [clojure.tools.analyzer.env :as env]
-            [clojure.tools.analyzer.ast :refer [children]]
-            [clojure.tools.analyzer.passes.jvm.emit-form :as jvm-emit]
-            [klor.runtime :refer [noop send recv make-proj]]
-            [klor.types :refer [type-roles]]
-            [klor.typecheck :refer [typecheck sanity-check]]
-            [klor.util :refer [usym? ast-error]]))
+  (:require
+   [clojure.tools.analyzer.env :as env]
+   [clojure.tools.analyzer.ast :refer [children]]
+   [clojure.tools.analyzer.passes.jvm.emit-form :as jvm-emit]
+   [klor.runtime :refer [noop send recv make-proj]]
+   [klor.types :refer [type-roles]]
+   [klor.typecheck :refer [typecheck sanity-check]]
+   [klor.util :refer [usym? ast-error]]))
 
 ;;; Util
 

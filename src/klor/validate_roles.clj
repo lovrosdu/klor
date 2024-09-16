@@ -1,8 +1,9 @@
 (ns klor.validate-roles
-  (:require [clojure.set :as set]
-            [clojure.tools.analyzer.utils :refer [-source-info]]
-            [klor.types :refer [type-roles]]
-            [klor.util :refer [usym? ast-error]]))
+  (:require
+   [clojure.set :as set]
+   [clojure.tools.analyzer.utils :refer [-source-info]]
+   [klor.types :refer [type-roles]]
+   [klor.util :refer [usym? ast-error]]))
 
 (defn validate-error [msg ast & {:as kvs}]
   (ast-error :klor/parse msg ast kvs))

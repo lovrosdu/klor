@@ -1,7 +1,8 @@
 (ns klor.events
-  (:require [clojure.set :as set]
-            [klor.core :refer :all]
-            [klor.util :refer [usym? error do1]])
+  (:require
+   [clojure.set :as set]
+   [klor.core :refer :all]
+   [klor.util :refer [usym? error do1]])
   (:import java.util.concurrent.LinkedBlockingQueue))
 
 ;;; Events

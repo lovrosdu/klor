@@ -1,13 +1,14 @@
 (ns klor.instrument
-  (:require [clojure.tools.analyzer.env :as env]
-            [clojure.tools.analyzer.passes :refer [schedule]]
-            [klor.analyzer :refer [analyze*]]
-            [klor.emit-form :refer [emit-form]]
-            [klor.specials :refer [narrow lifting inst]]
-            [klor.stdlib :refer [bcast gather]]
-            [klor.types :refer [render-type replace-roles]]
-            [klor.typecheck :refer [typecheck sanity-check]]
-            [klor.util :refer [usym? error warn]]))
+  (:require
+   [clojure.tools.analyzer.env :as env]
+   [clojure.tools.analyzer.passes :refer [schedule]]
+   [klor.analyzer :refer [analyze*]]
+   [klor.emit-form :refer [emit-form]]
+   [klor.specials :refer [narrow lifting inst]]
+   [klor.stdlib :refer [bcast gather]]
+   [klor.types :refer [render-type replace-roles]]
+   [klor.typecheck :refer [typecheck sanity-check]]
+   [klor.util :refer [usym? error warn]]))
 
 ;;; NOTE: For ease of development and convenience, agreement and signature
 ;;; verification are implemented at the choreographic level via macros, which

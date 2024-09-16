@@ -1,6 +1,7 @@
 (ns klor.util
-  (:require [clojure.tools.analyzer.ast :refer [update-children]]
-            [clojure.tools.analyzer.utils :refer [-source-info]]))
+  (:require
+   [clojure.tools.analyzer.ast :refer [update-children]]
+   [clojure.tools.analyzer.utils :refer [-source-info]]))
 
 ;;; Clojure
 
