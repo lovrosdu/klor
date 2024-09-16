@@ -12,11 +12,11 @@ The following table shows the layouts we used:
 
 | n | Manually chosen layout                         | Fully connected layout                           |
 |--:|:----------------------------------------------:|:------------------------------------------------:|
-| 3 | <img src="./layout-manual-3.svg" height="100"> | <img src="./layout-complete-3.svg" height="100"> |
-| 4 | <img src="./layout-manual-4.svg" height="100"> | <img src="./layout-complete-4.svg" height="100"> |
-| 5 | <img src="./layout-manual-5.svg" height="100"> | <img src="./layout-complete-5.svg" height="100"> |
-| 6 | <img src="./layout-manual-6.svg" height="100"> | <img src="./layout-complete-6.svg" height="100"> |
-| 7 | <img src="./layout-manual-7.svg" height="100"> | <img src="./layout-complete-7.svg" height="100"> |
+| 3 | <img src="./evaluation-layout-manual-3.svg" height="100"> | <img src="./evaluation-layout-complete-3.svg" height="100"> |
+| 4 | <img src="./evaluation-layout-manual-4.svg" height="100"> | <img src="./evaluation-layout-complete-4.svg" height="100"> |
+| 5 | <img src="./evaluation-layout-manual-5.svg" height="100"> | <img src="./evaluation-layout-complete-5.svg" height="100"> |
+| 6 | <img src="./evaluation-layout-manual-6.svg" height="100"> | <img src="./evaluation-layout-complete-6.svg" height="100"> |
+| 7 | <img src="./evaluation-layout-manual-7.svg" height="100"> | <img src="./evaluation-layout-complete-7.svg" height="100"> |
 
 To make measurements consistent and statistically meaningful, we made use of the [Criterium](https://github.com/hugoduncan/criterium) library to aggregate the data from a series of executions and account for the peculiarities of the JVM's just-in-time compiler and garbage collector.
 All of the measurements were made on a Linux x86-64 system with an Intel i5-6500 3.20 GHz CPU and 40 GiB of RAM.
