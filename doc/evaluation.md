@@ -2,7 +2,7 @@
 
 ## Methodology
 
-We implemented a [benchmark](https://github.com/lovrosdu/klor/blob/master/src/klor/benchmark.clj) to carry out a performance evaluation of Klor based on the implemented [distributed algorithms](https://github.com/lovrosdu/klor/blob/master/src/klor/fokkink.clj).
+We implemented a [benchmark](../src/klor/benchmark.clj) to carry out a performance evaluation of Klor based on the implemented [distributed algorithms](../src/klor/fokkink.clj).
 We evaluated the compile-time and the run-time performance using the following selection of algorithms: Chang--Roberts, Itai--Rodeh, Tarry's algorithm, Depth-first search, Echo algorithm, and Echo algorithm with extinction.
 
 In particular, we performed a series of measurements for each combination of algorithm, number of roles (from 3 to 7) and network layout.
@@ -60,7 +60,7 @@ Klor's run-time phase corresponds to the execution of the projected code.
 Since Klor freely interoperates with and compiles down to Clojure, it naturally inherits all of its performance characteristics.
 However, for run-time performance we are mainly interested in measuring the overhead introduced by Klor compared to plain Clojure.
 
-For this reason, in addition to the Klor implementations of the algorithms, we also implemented [plain Clojure variants](https://github.com/lovrosdu/klor/blob/master/src/klor/fokkink_plain.clj) of each algorithm.
+For this reason, in addition to the Klor implementations of the algorithms, we also implemented [plain Clojure variants](../src/klor/fokkink_plain.clj) of each algorithm.
 We measured the run-time performance by timing the execution of each variant of the algorithm (`K` for Klor vs. `P` for plain Clojure).
 In both cases we've used the shared memory `core.async` channels as the underlying transport mechanism, which allows us to avoid highly variable transport latencies as much as possible and measure the overhead.
 
