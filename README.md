@@ -4,6 +4,8 @@
   <img src="./klor.svg" title="Klor" alt="Klor">
 </p>
 
+[![Clojars Project](https://img.shields.io/clojars/v/org.clojars.klor/klor.svg)](https://clojars.org/org.clojars.klor/klor)
+
 Klor is a domain-specific language for choreographic programming, embedded in Clojure.
 
 ## Tutorial
