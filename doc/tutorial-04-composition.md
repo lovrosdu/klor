@@ -253,7 +253,7 @@ We can test our implementation with the [example from Wikipedia](https://en.wiki
 
 Both roles end up with the same key 18.
 Klor projects tuples to plain Clojure vectors which is why the simulator shows `[18]` as the final result.
-TODO: More on the projection interface later.
+Detailed information on how choreographic values are exposed to Clojure can be found in [Reference: Runtime](./reference-02-runtime.md).
 
 Now that we can exchange a cryptographic key, we can also write a choreography to "securely" communicate a value:
 

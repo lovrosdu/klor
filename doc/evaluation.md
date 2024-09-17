@@ -2,7 +2,7 @@
 
 ## Methodology
 
-We implemented a [benchmark](../src/klor/benchmark.clj) to carry out a performance evaluation of Klor based on the [implemented](../src/klor/fokkink.clj) [distributed algorithms](distributed-algorithms.md).
+We implemented a [benchmark](../src/klor/benchmark.clj) to carry out a performance evaluation of Klor based on the [implemented](../src/klor/fokkink.clj) [distributed algorithms](./distributed-algorithms.md).
 We evaluated the compile-time and the run-time performance using the following selection of algorithms: Chang--Roberts, Itai--Rodeh, Tarry's algorithm, Depth-first search, Echo algorithm, and Echo algorithm with extinction.
 
 In particular, we performed a series of measurements for each combination of algorithm, number of roles (from 3 to 7) and network layout.

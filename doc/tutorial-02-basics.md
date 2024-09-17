@@ -46,7 +46,7 @@ Certain operators do require special considerations within a choreographic conte
 See [Reference: Language](./reference-01-language.md) for a full list of special operators supported by Klor, though most of them ones will be covered by the tutorial.
 
 Behind the scenes, the `defchor` macro will type check the choreography and, assuming everything is ok, produce a projection for each of the roles involved.
-TODO: We will see later how the individual projections produced by a `defchor` form can be invoked from Clojure, but for now will make use of Klor's **simulator** instead.
+Invoking the individual projections from Clojure will be covered later in [Tutorial: Execution](./tutorial-05-execution.md), and until then we will make use of Klor's **simulator** instead.
 The simulator allows us to test a choreography from within a single Clojure process by automatically executing each role's projection on a separate thread.
 This is a highly useful tool during development and debugging.
 
@@ -154,7 +154,7 @@ As mentioned before, it is `defchor` that will produce the projections and ensur
 All of the necessary code is generated automatically and does not in any way assume it will be running in the simulator.
 The simulator is just a convenience for local testing that schedules each projection on a separate thread and wires them up to communicate over in-memory `core.async` channels.
 Generally, Klor permits any value as an argument to a communication, with the assumption that the underlying transport will know how to (de)serialize it.
-TODO: Transport customization will be covered later once we get to invoking projections from Clojure.
+Transport customization is covered later in [Tutorial: Execution](./tutorial-05-execution.md).
 
 ## More Examples
 
