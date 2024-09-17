@@ -234,10 +234,6 @@ This is necessary to make reuse of existing Clojure code possible.
 For example, if `fn` did not return a value of agreement type, it would be unusable as an argument to other Clojure functions such as `map`, `with-bindings`, etc.
 On the other hand, the only way it can return a value of agreement type is to require that the behavior in its body is consistent across roles, otherwise their return values could differ.
 
-### Unsupported Clojure Operators
-
-TODO: `loop`, others?
-
 ## The Entrypoint: `defchor`
 
 The `defchor` macro defines a named **choreographic definition**, which is a **location-polymorphic** choreography.
