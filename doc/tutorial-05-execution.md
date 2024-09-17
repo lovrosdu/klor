@@ -64,7 +64,7 @@ The drivers are `run-seller` and `run-buyer`:
                                {host "0.0.0.0" port port
                                 forever false log :dynamic}}]
   (let [catalog (or catalog {"To Mock A Mockingbird" 50})]
-    (with-server [ssc :host host :port port]
+    (with-server [ssc {:host host :port port}]
       (loop []
         (println "Listening on" (str (.getLocalAddress ssc)))
         (with-accept [ssc sc]
@@ -79,7 +79,7 @@ The drivers are `run-seller` and `run-buyer`:
                       :budget 50
                       :address "Some Address 123"}
                      order)]
-    (with-client [sc :host host :port port]
+    (with-client [sc {:host host :port port}]
       (println "Connected to" (str (.getRemoteAddress sc)))
       (play-role (wrap-sockets {:role 'B} {'S sc} :log log)
                  buy-book order))))
