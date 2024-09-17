@@ -55,22 +55,37 @@
             :recv (wrap-log socket-recv)}
            config)))
 
-(defmacro with-server [[sym & {:keys [host port] :or {host "0.0.0.0"}}] & body]
-  `(let [~sym (doto (ServerSocketChannel/open)
-                (.configureBlocking true)
-                (.setOption StandardSocketOptions/SO_REUSEADDR true)
-                (.bind (InetSocketAddress. (str ~host) (long ~port))))]
-     (try ~@body (finally (.close ~sym)))))
+(defn with-server-socket [& {:keys [host port] :or {host "0.0.0.0"}}]
+  (doto (ServerSocketChannel/open)
+    (.configureBlocking true)
+    (.setOption StandardSocketOptions/SO_REUSEADDR true)
+    (.bind (InetSocketAddress. (str host) (long port)))))
 
-(defmacro with-accept [[ssc & syms] & body]
-  (let [ssc# (gensym)]
+(defn with-server* [expr [sym opts]]
+  `(let [~sym (with-server-socket ~opts)]
+     (try ~expr (finally (.close ~sym)))))
+
+(defmacro with-server [specs & body]
+  (reduce with-server* `(do ~@body) (reverse (partition-all 2 specs))))
+
+(defn with-accept* [expr [ssc syms]]
+  (let [ssc# (gensym)
+        syms (if (symbol? syms) [syms] syms)]
     `(let [~ssc# ~ssc
            ~@(mapcat identity (for [sym syms] [sym `(.accept ~ssc#)]))]
-       (try ~@body (finally ~@(for [sym syms] `(.close ~sym)))))))
+       (try ~expr (finally ~@(for [sym syms] `(.close ~sym)))))))
 
-(defmacro with-client [[sym & {:keys [host port] :or {host "127.0.0.1"}}]
-                       & body]
-  `(let [~sym (doto (SocketChannel/open
-                     (InetSocketAddress. (str ~host) (long ~port)))
-                (.configureBlocking true))]
-     (try ~@body (finally (.close ~sym)))))
+(defmacro with-accept [specs & body]
+  (reduce with-accept* `(do ~@body) (reverse (partition-all 2 specs))))
+
+(defn with-client-socket [& {:keys [host port] :or {host "127.0.0.1"}}]
+  (doto (SocketChannel/open
+         (InetSocketAddress. (str host) (long port)))
+    (.configureBlocking true)))
+
+(defn with-client* [expr [sym opts]]
+  `(let [~sym (with-client-socket ~opts)]
+     (try ~expr (finally (.close ~sym)))))
+
+(defmacro with-client [specs & body]
+  (reduce with-client* `(do ~@body) (reverse (partition-all 2 specs))))
