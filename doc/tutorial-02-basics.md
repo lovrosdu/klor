@@ -46,7 +46,7 @@ Certain operators do require special considerations within a choreographic conte
 See [Reference: Language](./reference-01-language.md) for a full list of special operators supported by Klor, though most of them ones will be covered by the tutorial.
 
 Behind the scenes, the `defchor` macro will type check the choreography and, assuming everything is ok, produce a projection for each of the roles involved.
-Invoking the individual projections from Clojure will be covered later in [Tutorial: Execution](./tutorial-05-execution.md), and until then we will make use of Klor's **simulator** instead.
+Invoking the individual projections from Clojure will be covered later in [Tutorial: Execution](./tutorial-05-execution.md), so until then we will make use of Klor's **simulator** instead.
 The simulator allows us to test a choreography from within a single Clojure process by automatically executing each role's projection on a separate thread.
 This is a highly useful tool during development and debugging.
 
