@@ -4,14 +4,14 @@
 
 So far we've been running all of our choreographies in a single Clojure process with the help of the Klor simulator.
 In practice we will want to distribute the execution of a choreography over multiple threads, processes, physical nodes or even a combination thereof.
-For that purpose, we need the ability to integrate the individual projections of a choreography with Clojure code, as well as customize the mechanism that the roles use to communicate.
+For that purpose, we need the ability to integrate the individual projections of a choreography with Clojure code, as well as customize the transport mechanism that the roles use to communicate.
 
 The main way to use a choreography from Clojure code is to "play one of its roles", i.e. invoke one of its projections.
 A single Clojure process can play one or multiple roles of a choreography, though it is important to ensure that the roles of a single choreography always execute **concurrently** (e.g. by executing them on different threads).
 A single process can also be involved in multiple different choreographies, either simultaneously or at different points in time.
 
-To demonstrate the use of a Klor choreography from Clojure we will implement a toy bookseller choreography and run it over TCP sockets.
-Two roles, the buyer `B` and seller `S`, communicate for `B` to buy a book from `S`:
+To demonstrate the above we will implement a toy bookseller choreography and run it over TCP sockets.
+A buyer `B` wants to buy a book from the seller `S` according to the following choreography:
 
 - `B` sends `S` the title of the book,
 - `S` receives the title, looks up the price of the book and sends it to `B`,
@@ -19,13 +19,7 @@ Two roles, the buyer `B` and seller `S`, communicate for `B` to buy a book from 
 - `B` sends its decision to `S`, along with an address if necessary,
 - `S` receives the decision and possibly returns the delivery date to the `B`.
 
-We'll use the follow data structures:
-
-- `order` is a map `{:title <string> :budget <number> :address <string>}`,
-- `catalog` is a map of `<string> <number>` pairs mapping book names to their prices,
-- `ship!` is a side effectful function that, given the address, executes the book shipment and returns the delivery date.
-
-Here's how the choreography might look like in Klor:
+Here's how we might implement this in Klor:
 
 ```clojure
 (defn ship! [address]
@@ -42,9 +36,15 @@ Here's how the choreography might look like in Klor:
           (B nil)))))
 ```
 
-With the choreography is in place, we can write "driver code" that will invoke the respective projections.
+We've used the following to model the problem:
+
+- `order` is a map `{:title <string> :budget <number> :address <string>}`,
+- `catalog` is a map of `<string> <number>` pairs mapping book names to their prices,
+- `ship!` is a side effectful function that executes the book shipment and returns the delivery date.
+
+With the choreography in place, we can now write Clojure "driver code" that will invoke the respective projections.
 This is done using Klor's `(play-role <conf> <chor> <arg>*)` function.
-It invokes the desired projection of a choreography and passes to it the given arguments.
+It invokes the desired projection of a choreography and passes it the given arguments.
 
 `play-role` and configure the necessary transport functions and TCP sockets as the locators.
 
