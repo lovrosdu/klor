@@ -152,7 +152,13 @@ The body `<expr>*` forms an implicit `do` block.
 
 ### `(agree! <expr>+)`
 
-TODO
+`agree!` declares that multiple expressions are guaranteed (by the programmer) to evaluate to the same value and can therefore be treated by Klor as a single value of agreement type.
+Each `<expr>` must be of agreement type and they must all be mutually disjoint in their roles.
+The result is of agreement type with the union of the roles of the individual expressions.
+
+Agreement is usually constructed explicitly by sharing values using `copy`.
+`agree!` is for the cases where the programmer knows agreement exists but cannot be captured because it is achieved through means other than communication.
+This is an **unsafe** operation: not ensuring that the values of the expressions indeed agree will lead to bugs.
 
 ### `(do <expr>*)`
 
