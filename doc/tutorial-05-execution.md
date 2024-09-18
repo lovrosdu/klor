@@ -43,21 +43,14 @@ We've used the following to model the problem:
 - `ship!` is a side effectful function that executes the book shipment and returns the delivery date.
 
 With the choreography in place, we can now write Clojure "driver code" that will invoke the respective projections.
-This is done using Klor's `(play-role <conf> <chor> <arg>*)` function.
-It invokes the desired projection of a choreography and passes it the given arguments.
-
-`play-role` and configure the necessary transport functions and TCP sockets as the locators.
-
-For a TCP connection to work one of the roles will have to act as a server, so we choose `S` to be the server and `B` to be the client.
-
-Klor provides the `wrap-sockets` utility which produces a role configuration containing `:send` and `:recv` transport functions that perform their communication assuming the locators are standard Java NIO `SocketChannel` objects.
-For serializing and deserializing Clojure values, the functions use the [Nippy](https://github.com/taoensso/nippy) serialization library.
-
-The drivers also use a few more utilities -- `with-server`, `with-accept` and `with-client`, all part of Klor -- which are convenience macros that deal with the boilerplate of setting up a server socket, accepting connections from clients, and connecting a client to a server.
-
+The fundamental way to do this is with Klor's `play-role` function.
 The drivers are `run-seller` and `run-buyer`:
 
 ```clojure
+(require
+  '[klor.runtime :refer [play-role]]
+  '[klor.sockets :refer [wrap-sockets with-server with-accept with-client]])
+
 (def port 1337)
 
 (defn run-seller [catalog & {:keys [host port forever log] :or
@@ -85,8 +78,23 @@ The drivers are `run-seller` and `run-buyer`:
                  buy-book order))))
 ```
 
+The most important parts of the above drivers are the calls to `play-role`.
+The first argument to `play-role` is known as a **role configuration**.
+It is a map that specifies which role of the choreography to play and how to communicate with the other roles.
+This mechanism allows you to fully customize the meaning of "communication" in your choreography.
+
+Here we use Klor's `wrap-sockets` utility which produces a role configuration for communicating over standard `java.nio` sockets.
+For serializing and deserializing Clojure values we use the [Nippy](https://github.com/taoensso/nippy) serialization library.
+
+The drivers use a few utilities -- `with-server`, `with-accept` and `with-client`, all part of Klor -- which are just convenience macros that deal with the boilerplate of setting up plain TCP sockets: creating a server socket, accepting connections from clients, and connecting a client to a server.
+For a TCP connection to work one of the roles will have to act as a server, so we choose `S` to be the server and `B` to be the client.
+
+Following the role configuration, `play-role` is provided the choreography and the necessary arguments to pass to the projection.
+In general, how many arguments and of what kind the projections accept depends on the signature of the choreography.
+The situation here is relatively straightfoward: the seller accepts just the catalog and the buyer just the order.
+
 Note that the drivers come with some hardcoded data for the purposes of the example.
-In particular, the catalog used by `run-seller` defaults to the map `{"To Mock A Mockingbird" 50}` if `nil` is given.
+In particular, the catalog used by `run-seller` defaults to the map `{"To Mock A Mockingbird" 50}`.
 Similarly, the order provided to `run-buyer` order is merged with the default map `{:title "To Mock A Mockingbird" :budget 50 :address "Some Address 123"}`.
 
 Now we can run the `S` on a separate thread with some logging enabled: `(run-seller nil :forever true :log true)`.
@@ -136,5 +144,3 @@ Connected to /127.0.0.1:1337
 /127.0.0.1:50442 --> ko
 Buyer changed his mind
 ```
-
----
