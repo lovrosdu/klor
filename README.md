@@ -1,7 +1,7 @@
 # Klor: Choreographies in Clojure
 
 <p align="center">
-  <img src="./klor.svg" title="Klor" alt="Klor">
+  <img src="./klor.svg" title="Klor" alt="Klor logo">
 </p>
 
 [![Clojars Project](https://img.shields.io/clojars/v/org.clojars.klor/klor.svg)](https://clojars.org/org.clojars.klor/klor)
@@ -17,6 +17,12 @@ If you're new to Klor or choreographic programming, check out the tutorial to le
 - [Sharing Knowledge](./doc/tutorial-03-sharing-knowledge.md)
 - [Composition](./doc/tutorial-04-composition.md)
 - [Execution](./doc/tutorial-05-execution.md)
+
+We also gave a [talk](https://www.youtube.com/watch?v=E-QzNKqdqo4) on Klor at [Heart of Clojure 2024](https://2024.heartofclojure.eu/):
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=E-QzNKqdqo4"><img src="https://img.youtube.com/vi/E-QzNKqdqo4/maxresdefault.jpg" title="Klor: Choreographic Programming in Clojure by Lovro Lugović and Sung-Shik Jongmans" alt="Klor Heart of Clojure 2024 video"></a>
+</p>
 
 ## Reference
 
